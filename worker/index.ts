@@ -2,9 +2,7 @@ import { Hono } from "hono"
 import { upgradeWebSocket } from "hono/cloudflare-workers"
 import type { WSContext } from "hono/ws"
 import { match } from "ts-pattern"
-import {
-  parseLiveRequestEnvelope,
-} from "../shared/live-request-envelope"
+import { parseLiveRequestEnvelope } from "../shared/live-request-envelope"
 import { createAudioOutputChunkResponseEnvelope } from "../shared/live-response-envelope"
 import { createLiveSession } from "./live"
 
@@ -13,7 +11,6 @@ type Bindings = {
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
-const DEFAULT_RESPONSE_MIME_TYPE = "audio/pcm;rate=24000"
 
 app.get(
   "/api/live",
@@ -23,25 +20,34 @@ app.get(
       events,
       session,
       [Symbol.dispose]: dispose,
-    } = await createLiveSession(c.env.GEMINI_API_KEY)
+    } = await createLiveSession({
+      apiKey: c.env.GEMINI_API_KEY,
+      toolSet: [
+        {
+          def: {
+            name: "append_markdown",
+            description:
+              "Anlatmadan önce bu araç ile sunacağın ve öğrenciye görünecek olan markdown dökümanına ekleme yap",
+            parameters: { type: "STRING" },
+          },
+          async call(functionCalls) {
+            console.log("GOTTEM", functionCalls)
+            return { status: "success" }
+          },
+        },
+      ],
+    })
 
-    const cleanupMessage = events.on("message", (message) => {
+    const cleanupMessage = events.on("audioChunk", (audioChunk, mimeType) => {
       if (!ws || ws.readyState !== WebSocket.OPEN) {
         return
       }
 
-      for (const part of message.serverContent?.modelTurn?.parts ?? []) {
-        const audioChunk = part.inlineData
-        if (!audioChunk?.data) {
-          continue
-        }
-
-        const responseEnvelope = createAudioOutputChunkResponseEnvelope(
-          audioChunk.data,
-          audioChunk.mimeType ?? DEFAULT_RESPONSE_MIME_TYPE,
-        )
-        ws.send(JSON.stringify(responseEnvelope))
-      }
+      const responseEnvelope = createAudioOutputChunkResponseEnvelope(
+        audioChunk,
+        mimeType,
+      )
+      ws.send(JSON.stringify(responseEnvelope))
     })
 
     const cleanupError = events.on("error", () => {
@@ -77,17 +83,14 @@ app.get(
         }
 
         match(requestEnvelope)
-          .with(
-            { type: "audioInputChunk" },
-            (audioEnvelope) => {
-              session.sendRealtimeInput({
-                audio: {
-                  data: audioEnvelope.audioBase64,
-                  mimeType: audioEnvelope.mimeType,
-                },
-              })
-            },
-          )
+          .with({ type: "audioInputChunk" }, (audioEnvelope) => {
+            session.sendRealtimeInput({
+              audio: {
+                data: audioEnvelope.audioBase64,
+                mimeType: audioEnvelope.mimeType,
+              },
+            })
+          })
           .exhaustive()
       },
       onClose() {
