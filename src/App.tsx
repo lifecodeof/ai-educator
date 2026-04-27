@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { match } from 'ts-pattern'
+import {
+  createAudioInputChunkRequestEnvelope,
+} from '../shared/live-request-envelope'
+import {
+  LIVE_RESPONSE_ENVELOPE_TYPE,
+  parseLiveResponseEnvelope,
+} from '../shared/live-response-envelope'
 import './App.css'
-
-type GatewayHealthResponse = {
-  status: 'ok'
-  service: string
-  websocketPath: string
-  model: string
-}
 
 type LegacyWindow = Window & { webkitAudioContext?: typeof AudioContext }
 
@@ -15,12 +15,31 @@ const RECORDING_SAMPLE_RATE = 16_000
 const PLAYBACK_SAMPLE_RATE = 24_000
 const VISUALIZER_ACTIVE_THRESHOLD = 15
 
-async function fetchGatewayHealth(): Promise<GatewayHealthResponse> {
-  const response = await fetch('/api/health')
-  if (!response.ok) {
-    throw new Error(`Gateway health check failed: ${response.status}`)
+function encodeBase64(bytes: Uint8Array): string {
+  let raw = ''
+  for (let i = 0; i < bytes.length; i += 1) {
+    raw += String.fromCharCode(bytes[i])
   }
-  return response.json() as Promise<GatewayHealthResponse>
+  return btoa(raw)
+}
+
+function decodeBase64(value: string): ArrayBuffer {
+  const raw = atob(value)
+  const buffer = new ArrayBuffer(raw.length)
+  const bytes = new Uint8Array(buffer)
+  for (let i = 0; i < raw.length; i += 1) {
+    bytes[i] = raw.charCodeAt(i)
+  }
+  return buffer
+}
+
+function convertFloat32ToInt16(floatSamples: Float32Array): Int16Array {
+  const int16Buffer = new Int16Array(floatSamples.length)
+  for (let i = 0; i < floatSamples.length; i += 1) {
+    const sample = Math.max(-1, Math.min(1, floatSamples[i]))
+    int16Buffer[i] = (sample < 0 ? sample * 0x8000 : sample * 0x7fff) | 0
+  }
+  return int16Buffer
 }
 
 function getAudioContextCtor() {
@@ -52,12 +71,6 @@ function App() {
     const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws'
     return `${protocol}://${window.location.host}/api/live`
   }, [])
-
-  const healthQuery = useQuery({
-    queryKey: ['gateway-health'],
-    queryFn: fetchGatewayHealth,
-    refetchInterval: 30_000,
-  })
 
   const ensurePlaybackContext = useCallback(() => {
     if (!playbackContextRef.current) {
@@ -132,9 +145,10 @@ function App() {
     if (!isRecordingRef.current || !ws || ws.readyState !== WebSocket.OPEN) {
       return
     }
-    const copy = new Float32Array(event.data.length)
-    copy.set(event.data)
-    ws.send(copy.buffer)
+
+    const pcmInt16 = convertFloat32ToInt16(event.data)
+    const requestEnvelope = createAudioInputChunkRequestEnvelope(encodeBase64(new Uint8Array(pcmInt16.buffer)))
+    ws.send(JSON.stringify(requestEnvelope))
   }, [])
 
   const stopRecording = useCallback(async () => {
@@ -246,7 +260,6 @@ function App() {
     }
 
     const ws = new WebSocket(wsUrl)
-    ws.binaryType = 'arraybuffer'
     wsRef.current = ws
 
     ws.addEventListener('open', () => {
@@ -260,13 +273,22 @@ function App() {
     })
 
     ws.addEventListener('message', (event) => {
-      void (async () => {
-        if (typeof event.data === 'string') {
-          return
-        }
-        const buffer = event.data instanceof ArrayBuffer ? event.data : await event.data.arrayBuffer()
-        await playAudio(buffer)
-      })()
+      if (typeof event.data !== 'string') {
+        console.warn('Ignored websocket message: expected response envelope text.')
+        return
+      }
+
+      const responseEnvelope = parseLiveResponseEnvelope(event.data)
+      if (!responseEnvelope) {
+        console.warn('Ignored websocket message: invalid response envelope.')
+        return
+      }
+
+      void match(responseEnvelope)
+        .with({ type: LIVE_RESPONSE_ENVELOPE_TYPE.AudioOutputChunk }, async (audioEnvelope) => {
+          await playAudio(decodeBase64(audioEnvelope.audioBase64))
+        })
+        .exhaustive()
     })
 
     ws.addEventListener('error', () => {
@@ -308,18 +330,12 @@ function App() {
           ? 'Connecting'
           : 'Ready to connect'
 
-  const gatewayStatus = healthQuery.isPending
-    ? 'Checking gateway'
-    : healthQuery.isError
-      ? 'Gateway unavailable'
-      : 'Gateway healthy'
-
   return (
     <main className="app">
       <section className="panel">
         <header className="header">
           <h1>Gemini Live Gateway</h1>
-          <p>{gatewayStatus}</p>
+          <p>WebSocket live audio bridge</p>
         </header>
 
         <div className={`status ${statusClassName}`}>{statusText}</div>
@@ -345,21 +361,7 @@ function App() {
             <dt>WebSocket endpoint</dt>
             <dd>{wsUrl}</dd>
           </div>
-          <div>
-            <dt>Gateway service</dt>
-            <dd>{healthQuery.data?.service ?? 'unknown'}</dd>
-          </div>
-          <div>
-            <dt>Live model</dt>
-            <dd>{healthQuery.data?.model ?? 'unknown'}</dd>
-          </div>
         </dl>
-
-        {healthQuery.isError && (
-          <p className="error-text">
-            {healthQuery.error instanceof Error ? healthQuery.error.message : 'Unable to load gateway health.'}
-          </p>
-        )}
       </section>
     </main>
   )

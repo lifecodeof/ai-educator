@@ -5,7 +5,6 @@ Cloudflare Worker + React application that bridges real-time microphone audio to
 ## Stack
 
 - **Worker API:** Hono
-- **Client data fetching:** TanStack Query
 - **Runtime:** Cloudflare Workers + Vite
 
 ## Features
