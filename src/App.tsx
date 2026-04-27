@@ -4,7 +4,6 @@ import {
   createAudioInputChunkRequestEnvelope,
 } from '../shared/live-request-envelope'
 import {
-  LIVE_RESPONSE_ENVELOPE_TYPE,
   parseLiveResponseEnvelope,
 } from '../shared/live-response-envelope'
 import { decodeBase64, encodeBase64 } from './audio/base64'
@@ -248,7 +247,7 @@ function App() {
       }
 
       void match(responseEnvelope)
-        .with({ type: LIVE_RESPONSE_ENVELOPE_TYPE.AudioOutputChunk }, async (audioEnvelope) => {
+        .with({ type: 'audioOutputChunk' }, async (audioEnvelope) => {
           await playAudio(decodeBase64(audioEnvelope.audioBase64))
         })
         .exhaustive()

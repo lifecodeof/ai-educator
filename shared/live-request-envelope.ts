@@ -1,11 +1,7 @@
-export const LIVE_REQUEST_ENVELOPE_TYPE = {
-  AudioInputChunk: 'request.audio.chunk',
-} as const
-
 export type LiveRequestEnvelope = AudioInputChunkRequestEnvelope
 
 export type AudioInputChunkRequestEnvelope = {
-  type: typeof LIVE_REQUEST_ENVELOPE_TYPE.AudioInputChunk
+  type: 'audioInputChunk'
   audioBase64: string
   mimeType: 'audio/pcm;rate=16000'
 }
@@ -18,7 +14,7 @@ function isJsonRecord(value: unknown): value is JsonRecord {
 
 export function createAudioInputChunkRequestEnvelope(audioBase64: string): AudioInputChunkRequestEnvelope {
   return {
-    type: LIVE_REQUEST_ENVELOPE_TYPE.AudioInputChunk,
+    type: 'audioInputChunk',
     audioBase64,
     mimeType: 'audio/pcm;rate=16000',
   }
@@ -36,7 +32,7 @@ export function parseLiveRequestEnvelope(raw: string): LiveRequestEnvelope | nul
     return null
   }
 
-  if (parsed.type !== LIVE_REQUEST_ENVELOPE_TYPE.AudioInputChunk) {
+  if (parsed.type !== 'audioInputChunk') {
     return null
   }
 
@@ -45,7 +41,7 @@ export function parseLiveRequestEnvelope(raw: string): LiveRequestEnvelope | nul
   }
 
   return {
-    type: LIVE_REQUEST_ENVELOPE_TYPE.AudioInputChunk,
+    type: 'audioInputChunk',
     audioBase64: parsed.audioBase64,
     mimeType: parsed.mimeType,
   }

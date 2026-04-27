@@ -1,11 +1,7 @@
-export const LIVE_RESPONSE_ENVELOPE_TYPE = {
-  AudioOutputChunk: 'response.audio.chunk',
-} as const
-
 export type LiveResponseEnvelope = AudioOutputChunkResponseEnvelope
 
 export type AudioOutputChunkResponseEnvelope = {
-  type: typeof LIVE_RESPONSE_ENVELOPE_TYPE.AudioOutputChunk
+  type: 'audioOutputChunk'
   audioBase64: string
   mimeType: string
 }
@@ -21,7 +17,7 @@ export function createAudioOutputChunkResponseEnvelope(
   mimeType: string,
 ): AudioOutputChunkResponseEnvelope {
   return {
-    type: LIVE_RESPONSE_ENVELOPE_TYPE.AudioOutputChunk,
+    type: 'audioOutputChunk',
     audioBase64,
     mimeType,
   }
@@ -39,7 +35,7 @@ export function parseLiveResponseEnvelope(raw: string): LiveResponseEnvelope | n
     return null
   }
 
-  if (parsed.type !== LIVE_RESPONSE_ENVELOPE_TYPE.AudioOutputChunk) {
+  if (parsed.type !== 'audioOutputChunk') {
     return null
   }
 
@@ -48,7 +44,7 @@ export function parseLiveResponseEnvelope(raw: string): LiveResponseEnvelope | n
   }
 
   return {
-    type: LIVE_RESPONSE_ENVELOPE_TYPE.AudioOutputChunk,
+    type: 'audioOutputChunk',
     audioBase64: parsed.audioBase64,
     mimeType: parsed.mimeType,
   }
