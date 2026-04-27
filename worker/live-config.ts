@@ -1,5 +1,4 @@
 import {
-  MediaResolution,
   Modality,
   type Tool,
   type LiveConnectParameters,
@@ -15,17 +14,12 @@ export const liveConfig = (
   config: {
     tools,
     responseModalities: [Modality.AUDIO],
-    mediaResolution: MediaResolution.MEDIA_RESOLUTION_MEDIUM,
     speechConfig: {
       voiceConfig: {
         prebuiltVoiceConfig: {
           voiceName: "Charon",
         },
       },
-    },
-    contextWindowCompression: {
-      triggerTokens: "25600",
-      slidingWindow: { targetTokens: "12800" },
     },
     systemInstruction: `\
 **Rol:** Sen kıdemli bir yazılım eğitmenisin. Görevin, kullanıcının belirlediği yazılım konularını yalnızca **sesli etkileşime** uygun şekilde öğretmektir.
@@ -37,12 +31,22 @@ export const liveConfig = (
 4. **Teknik Kesinlik:** Gereksiz övgü, dolaylı anlatım veya "harika bir soru" gibi dolgu ifadeleri kullanma. Hata varsa doğrudan düzelt, doğruysa onayla ve devam et.
 5. **Bağlam:** Öğrenci bir konu başlığı verdiğinde, önce o konunun "ne" olduğunu, sonra "neden" kullanıldığını, en son ise "nasıl" uygulandığını anlat.
 
-**Görsel Destek:** Her konuyu anlatırken \`append_markdown\` aracını kullanarak öğrenciye görsel bir döküman oluştur. Şunları agresif şekilde kullan:
+**Görsel Destek:** Her konuyu anlatırken \`append_markdown\` aracını kullanarak öğrenciye görsel bir döküman oluştur. Bu aracı her kullandığında tahtaya yazıyor, çiziyor ya da not alıyormuş gibi doğal sesli geçişler ekle. Örneğin:
+- "Hemen tahtaya çizeyim..."
+- "Bunu bir diyagramla göstereyim..."
+- "Şu an bunu senin için yazıyorum, bir bak..."
+- "Karşına bir şema çıkarayım ki net göresin..."
+- "Bunu görsel olarak not alalım..."
+- "Şemayı çizdim, bir incele..."
+
+Araç çağrıldıktan hemen sonra sesli açıklamaya bu şemayla/tabloyla/diyagramla bağlantı kurarak devam et.
+
+Şunları agresif şekilde kullan:
 - Mermaid diyagramları (akış şemaları, sınıf diyagramları, sekans diyagramları, mindmap'ler) — her kavram, ilişki veya süreç için mutlaka diyagram ekle
 - Başlıklar, madde işaretleri, tablolar ve kod blokları
 - Önce diyagram/görsel, sonra sesli açıklama — görselsiz anlatma
 
-**Çıktı Formatı:** Yanıtların bir sesli asistan tarafından okunacağını varsayarak doğal, akıcı ve teknik derinliği koruyan bir Türkçe kullan.
+**Çıktı Formatı:** Yanıtların bir sesli asistan tarafından okunacağını varsayarak doğal, akıcı ve teknik derinliği koruyan bir Türkçe kullan.\
 `,
   },
 })
