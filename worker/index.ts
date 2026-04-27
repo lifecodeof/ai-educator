@@ -2,8 +2,8 @@ import { Hono } from "hono"
 import { upgradeWebSocket } from "hono/cloudflare-workers"
 import type { WSContext } from "hono/ws"
 import { match } from "ts-pattern"
-import { parseLiveRequestEnvelope } from "../shared/live-request-envelope"
-import { createAudioOutputChunkResponseEnvelope } from "../shared/live-response-envelope"
+import { type LiveRequest } from "../shared/live-request"
+import { sendMessage as sendLiveResponse } from "../shared/live-response"
 import { createLiveSession } from "./live"
 
 type Bindings = {
@@ -43,11 +43,11 @@ app.get(
         return
       }
 
-      const responseEnvelope = createAudioOutputChunkResponseEnvelope(
-        audioChunk,
+      sendLiveResponse(ws, {
+        type: "audioOutputChunk",
+        audioBase64: audioChunk,
         mimeType,
-      )
-      ws.send(JSON.stringify(responseEnvelope))
+      })
     })
 
     const cleanupError = events.on("error", () => {
@@ -70,24 +70,14 @@ app.get(
     return {
       onMessage(event, localWs) {
         ws = localWs
+        const request = JSON.parse(event.data as string) as LiveRequest
 
-        if (typeof event.data !== "string") {
-          console.warn("Ignored websocket message: expected text envelope.")
-          return
-        }
-
-        const requestEnvelope = parseLiveRequestEnvelope(event.data)
-        if (!requestEnvelope) {
-          console.warn("Ignored websocket message: invalid request envelope.")
-          return
-        }
-
-        match(requestEnvelope)
-          .with({ type: "audioInputChunk" }, (audioEnvelope) => {
+        match(request)
+          .with({ type: "audioInputChunk" }, (audioRequest) => {
             session.sendRealtimeInput({
               audio: {
-                data: audioEnvelope.audioBase64,
-                mimeType: audioEnvelope.mimeType,
+                data: audioRequest.audioBase64,
+                mimeType: audioRequest.mimeType,
               },
             })
           })

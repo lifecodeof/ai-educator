@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { match } from 'ts-pattern'
 import {
-  createAudioInputChunkRequestEnvelope,
-} from '../shared/live-request-envelope'
-import {
-  parseLiveResponseEnvelope,
-} from '../shared/live-response-envelope'
+  sendMessage as sendLiveRequest,
+} from '../shared/live-request'
+import { handleResponse as handleLiveResponse } from '../shared/live-response'
 import { decodeBase64, encodeBase64 } from './audio/base64'
 import { getAudioContextCtor } from './audio/audio-context'
 import { PLAYBACK_SAMPLE_RATE, RECORDING_SAMPLE_RATE, VISUALIZER_ACTIVE_THRESHOLD } from './audio/constants'
@@ -109,8 +107,11 @@ function App() {
     }
 
     const pcmInt16 = convertFloat32ToInt16(event.data)
-    const requestEnvelope = createAudioInputChunkRequestEnvelope(encodeBase64(new Uint8Array(pcmInt16.buffer)))
-    ws.send(JSON.stringify(requestEnvelope))
+    sendLiveRequest(ws, {
+      type: 'audioInputChunk',
+      audioBase64: encodeBase64(new Uint8Array(pcmInt16.buffer)),
+      mimeType: 'audio/pcm;rate=16000',
+    })
   }, [])
 
   const stopRecording = useCallback(async () => {
@@ -234,21 +235,10 @@ function App() {
       })
     })
 
-    ws.addEventListener('message', (event) => {
-      if (typeof event.data !== 'string') {
-        console.warn('Ignored websocket message: expected response envelope text.')
-        return
-      }
-
-      const responseEnvelope = parseLiveResponseEnvelope(event.data)
-      if (!responseEnvelope) {
-        console.warn('Ignored websocket message: invalid response envelope.')
-        return
-      }
-
-      void match(responseEnvelope)
-        .with({ type: 'audioOutputChunk' }, async (audioEnvelope) => {
-          await playAudio(decodeBase64(audioEnvelope.audioBase64))
+    const cleanupResponseHandler = handleLiveResponse(ws, (response) => {
+      void match(response)
+        .with({ type: 'audioOutputChunk' }, async (audioResponse) => {
+          await playAudio(decodeBase64(audioResponse.audioBase64))
         })
         .exhaustive()
     })
@@ -258,6 +248,7 @@ function App() {
     })
 
     ws.addEventListener('close', () => {
+      cleanupResponseHandler()
       cleanupConnection()
     })
   }, [cleanupConnection, ensurePlaybackContext, isConnecting, playAudio, startRecording, wsUrl])
