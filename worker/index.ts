@@ -40,6 +40,7 @@ app.get(
             },
           },
           async call({ content }) {
+            console.log({ content })
             if (ws)
               sendLiveResponse(ws, {
                 type: "markdownChunk",
