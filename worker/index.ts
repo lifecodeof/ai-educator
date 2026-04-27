@@ -27,7 +27,9 @@ app.get(
           def: {
             name: "append_markdown",
             description:
-              "Anlatmadan önce bu araç ile sunacağın ve öğrenciye görünecek olan markdown dökümanına ekleme yap",
+              "Anlatmadan önce bu araç ile sunacağın ve öğrenciye görünecek olan markdown dökümanına ekleme yap. " +
+              "Mermaid diyagramlarını AGRESIF şekilde kullan: her kavram, süreç, ilişki, akış, hiyerarşi veya karşılaştırma için mutlaka bir mermaid kod blogu (```mermaid ... ```) ekle. " +
+              "Gorselsiz anlatma — once diyagram, sonra aciklama.",
             parameters: {
               type: "object",
               properties: {

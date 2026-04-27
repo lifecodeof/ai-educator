@@ -1,3 +1,5 @@
+import ReactMarkdown from 'react-markdown'
+import { MermaidChart } from './components/MermaidChart'
 import { VISUALIZER_ACTIVE_THRESHOLD } from './audio/constants'
 import { useConnectionStatus } from './hooks/useConnectionStatus'
 import { useLiveGateway } from './hooks/useLiveGateway'
@@ -6,7 +8,7 @@ import './App.css'
 
 function App() {
   const wsUrl = useWebSocketUrl()
-  const { isConnecting, isConnected, isRecording, audioLevel, errorMessage, connect, disconnect } = useLiveGateway(wsUrl)
+  const { isConnecting, isConnected, isRecording, audioLevel, errorMessage, markdown, connect, disconnect } = useLiveGateway(wsUrl)
   const { statusClassName, statusText } = useConnectionStatus({
     errorMessage,
     isRecording,
@@ -39,6 +41,24 @@ function App() {
             Disconnect
           </button>
         </div>
+
+        {markdown && (
+          <div className="markdown-output">
+            <ReactMarkdown
+              components={{
+                code({ className, children }) {
+                  const lang = /language-(\w+)/.exec(className ?? '')?.[1]
+                  if (lang === 'mermaid') {
+                    return <MermaidChart chart={String(children).trim()} />
+                  }
+                  return <code className={className}>{children}</code>
+                },
+              }}
+            >
+              {markdown}
+            </ReactMarkdown>
+          </div>
+        )}
 
         <dl className="meta">
           <div>

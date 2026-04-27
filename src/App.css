@@ -130,6 +130,33 @@ button:disabled {
   color: var(--color-surface);
 }
 
+.mermaid-chart {
+  display: flex;
+  justify-content: center;
+  margin: 16px 0;
+}
+
+.mermaid-chart svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.mermaid-error {
+  color: red;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+}
+
+.markdown-output {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  text-align: left;
+  line-height: 1.6;
+  overflow-wrap: break-word;
+}
+
 .meta {
   margin-top: 24px;
   display: grid;

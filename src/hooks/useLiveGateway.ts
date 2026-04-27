@@ -13,6 +13,7 @@ interface UseLiveGatewayResult {
   isRecording: boolean
   audioLevel: number
   errorMessage: string | null
+  markdown: string
   connect: () => Promise<void>
   disconnect: () => void
 }
@@ -33,6 +34,7 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
   const [isRecording, setIsRecording] = useState(false)
   const [audioLevel, setAudioLevel] = useState(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [markdown, setMarkdown] = useState<string>('')
 
   const ensurePlaybackContext = useCallback(() => {
     if (!playbackContextRef.current) {
@@ -242,6 +244,9 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
         .with({ type: 'audioOutputChunk' }, async (audioResponse) => {
           await playAudio(decodeBase64(audioResponse.audioBase64))
         })
+        .with({ type: 'markdownChunk' }, ({ content }) => {
+          setMarkdown((prev) => prev + content)
+        })
         .exhaustive()
     })
 
@@ -271,6 +276,7 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
     isRecording,
     audioLevel,
     errorMessage,
+    markdown,
     connect,
     disconnect,
   }
