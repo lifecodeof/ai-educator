@@ -1,19 +1,17 @@
-export type LiveRequest = AudioInputChunkLiveRequest
-
-export type AudioInputChunkLiveRequest = {
-  type: 'audioInputChunk'
+export type LiveRequest = {
+  type: "audioInputChunk"
   audioBase64: string
-  mimeType: 'audio/pcm;rate=16000'
+  mimeType: "audio/pcm;rate=16000"
 }
 
 export type Websocket = {
   send(data: string): void
   addEventListener?(
-    type: 'message',
+    type: "message",
     listener: (event: MessageEvent<string>) => void,
   ): void
   removeEventListener?(
-    type: 'message',
+    type: "message",
     listener: (event: MessageEvent<string>) => void,
   ): void
 }
@@ -30,9 +28,9 @@ export function handleResponse(
     handler(JSON.parse(event.data) as LiveRequest)
   }
 
-  ws.addEventListener?.('message', listener)
+  ws.addEventListener?.("message", listener)
 
   return () => {
-    ws.removeEventListener?.('message', listener)
+    ws.removeEventListener?.("message", listener)
   }
 }

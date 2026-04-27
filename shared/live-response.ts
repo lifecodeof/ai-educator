@@ -1,19 +1,22 @@
-export type LiveResponse = AudioOutputChunkLiveResponse
-
-export type AudioOutputChunkLiveResponse = {
-  type: 'audioOutputChunk'
-  audioBase64: string
-  mimeType: string
-}
+export type LiveResponse =
+  | {
+      type: "audioOutputChunk"
+      audioBase64: string
+      mimeType: string
+    }
+  | {
+      type: "markdownChunk"
+      content: string
+    }
 
 export type Websocket = {
   send(data: string): void
   addEventListener?(
-    type: 'message',
+    type: "message",
     listener: (event: MessageEvent<string>) => void,
   ): void
   removeEventListener?(
-    type: 'message',
+    type: "message",
     listener: (event: MessageEvent<string>) => void,
   ): void
 }
@@ -30,9 +33,9 @@ export function handleResponse(
     handler(JSON.parse(event.data) as LiveResponse)
   }
 
-  ws.addEventListener?.('message', listener)
+  ws.addEventListener?.("message", listener)
 
   return () => {
-    ws.removeEventListener?.('message', listener)
+    ws.removeEventListener?.("message", listener)
   }
 }

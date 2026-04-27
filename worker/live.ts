@@ -26,7 +26,7 @@ export async function createLiveSession({
   apiKey: string
   toolSet: {
     def: FunctionDefinition
-    call: (args: unknown) => Promise<Record<string, unknown>>
+    call: (args: Record<string, unknown>) => Promise<Record<string, unknown>>
   }[]
 }): Promise<LiveSession> {
   if (!apiKey) {

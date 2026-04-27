@@ -28,10 +28,23 @@ app.get(
             name: "append_markdown",
             description:
               "Anlatmadan önce bu araç ile sunacağın ve öğrenciye görünecek olan markdown dökümanına ekleme yap",
-            parameters: { type: "STRING" },
+            parameters: {
+              type: "object",
+              properties: {
+                content: {
+                  type: "string",
+                },
+              },
+              required: ["content"],
+              additionalProperties: false,
+            },
           },
-          async call(functionCalls) {
-            console.log("GOTTEM", functionCalls)
+          async call({ content }) {
+            if (ws)
+              sendLiveResponse(ws, {
+                type: "markdownChunk",
+                content: content as string,
+              })
             return { status: "success" }
           },
         },
