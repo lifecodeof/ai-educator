@@ -1,3 +1,5 @@
+import { memo } from 'react'
+import type React from 'react'
 import ReactMarkdown from 'react-markdown'
 import { MermaidChart } from './components/MermaidChart'
 import { VISUALIZER_ACTIVE_THRESHOLD } from './audio/constants'
@@ -5,6 +7,24 @@ import { useConnectionStatus } from './hooks/useConnectionStatus'
 import { useLiveGateway } from './hooks/useLiveGateway'
 import { useWebSocketUrl } from './hooks/useWebSocketUrl'
 import './App.css'
+
+const markdownComponents = {
+  code({ className, children }: { className?: string; children?: React.ReactNode }) {
+    const lang = /language-(\w+)/.exec(className ?? '')?.[1]
+    if (lang === 'mermaid') {
+      return <MermaidChart chart={String(children).trim()} />
+    }
+    return <code className={className}>{children}</code>
+  },
+}
+
+const MarkdownOutput = memo(function MarkdownOutput({ markdown }: { markdown: string }) {
+  return (
+    <div className="markdown-output">
+      <ReactMarkdown components={markdownComponents}>{markdown}</ReactMarkdown>
+    </div>
+  )
+})
 
 function App() {
   const wsUrl = useWebSocketUrl()
@@ -42,23 +62,7 @@ function App() {
           </button>
         </div>
 
-        {markdown && (
-          <div className="markdown-output">
-            <ReactMarkdown
-              components={{
-                code({ className, children }) {
-                  const lang = /language-(\w+)/.exec(className ?? '')?.[1]
-                  if (lang === 'mermaid') {
-                    return <MermaidChart chart={String(children).trim()} />
-                  }
-                  return <code className={className}>{children}</code>
-                },
-              }}
-            >
-              {markdown}
-            </ReactMarkdown>
-          </div>
-        )}
+        {markdown && <MarkdownOutput markdown={markdown} />}
 
         <dl className="meta">
           <div>

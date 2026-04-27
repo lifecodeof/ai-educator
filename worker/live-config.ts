@@ -1,8 +1,4 @@
-import {
-  Modality,
-  type Tool,
-  type LiveConnectParameters,
-} from "@google/genai"
+import { Modality, type Tool, type LiveConnectParameters } from "@google/genai"
 
 const LIVE_MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025"
 export const liveConfig = (
@@ -43,6 +39,7 @@ Araç çağrıldıktan hemen sonra sesli açıklamaya bu şemayla/tabloyla/diyag
 
 Şunları agresif şekilde kullan:
 - Mermaid diyagramları (akış şemaları, sınıf diyagramları, sekans diyagramları, mindmap'ler) — her kavram, ilişki veya süreç için mutlaka diyagram ekle
+  - Mermaid diagramlarını her zaman kod bloklarının içinde kullan \`\`\`mermaid ... \`\`\`
 - Başlıklar, madde işaretleri, tablolar ve kod blokları
 - Önce diyagram/görsel, sonra sesli açıklama — görselsiz anlatma
 

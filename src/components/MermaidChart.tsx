@@ -16,14 +16,21 @@ export function MermaidChart({ chart }: MermaidChartProps) {
     if (!ref.current) return
     setError(null)
 
+    let cancelled = false
+
     mermaid
       .render(`mermaid-${id}`, chart)
       .then(({ svg }) => {
-        if (ref.current) ref.current.innerHTML = svg
+        if (!cancelled && ref.current) ref.current.innerHTML = svg
       })
       .catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : 'Mermaid render error')
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Mermaid render error')
       })
+
+    return () => {
+      cancelled = true
+      if (ref.current) ref.current.innerHTML = ''
+    }
   }, [chart, id])
 
   if (error) {
