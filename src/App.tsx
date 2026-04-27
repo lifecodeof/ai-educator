@@ -7,48 +7,11 @@ import {
   LIVE_RESPONSE_ENVELOPE_TYPE,
   parseLiveResponseEnvelope,
 } from '../shared/live-response-envelope'
+import { decodeBase64, encodeBase64 } from './audio/base64'
+import { getAudioContextCtor } from './audio/audio-context'
+import { PLAYBACK_SAMPLE_RATE, RECORDING_SAMPLE_RATE, VISUALIZER_ACTIVE_THRESHOLD } from './audio/constants'
+import { convertFloat32ToInt16 } from './audio/pcm'
 import './App.css'
-
-type LegacyWindow = Window & { webkitAudioContext?: typeof AudioContext }
-
-const RECORDING_SAMPLE_RATE = 16_000
-const PLAYBACK_SAMPLE_RATE = 24_000
-const VISUALIZER_ACTIVE_THRESHOLD = 15
-
-function encodeBase64(bytes: Uint8Array): string {
-  let raw = ''
-  for (let i = 0; i < bytes.length; i += 1) {
-    raw += String.fromCharCode(bytes[i])
-  }
-  return btoa(raw)
-}
-
-function decodeBase64(value: string): ArrayBuffer {
-  const raw = atob(value)
-  const buffer = new ArrayBuffer(raw.length)
-  const bytes = new Uint8Array(buffer)
-  for (let i = 0; i < raw.length; i += 1) {
-    bytes[i] = raw.charCodeAt(i)
-  }
-  return buffer
-}
-
-function convertFloat32ToInt16(floatSamples: Float32Array): Int16Array {
-  const int16Buffer = new Int16Array(floatSamples.length)
-  for (let i = 0; i < floatSamples.length; i += 1) {
-    const sample = Math.max(-1, Math.min(1, floatSamples[i]))
-    int16Buffer[i] = (sample < 0 ? sample * 0x8000 : sample * 0x7fff) | 0
-  }
-  return int16Buffer
-}
-
-function getAudioContextCtor() {
-  const audioContextCtor = window.AudioContext ?? (window as LegacyWindow).webkitAudioContext
-  if (!audioContextCtor) {
-    throw new Error('Web Audio API is not supported in this browser.')
-  }
-  return audioContextCtor
-}
 
 function App() {
   const wsRef = useRef<WebSocket | null>(null)
