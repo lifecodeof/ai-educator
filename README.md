@@ -1,4 +1,4 @@
-# AI Educator (Gemini Live Gateway)
+# AI Educator
 
 ## Setup
 
