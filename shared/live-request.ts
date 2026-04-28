@@ -8,11 +8,11 @@ export type Websocket = {
   send(data: string): void
   addEventListener?(
     type: "message",
-    listener: (event: MessageEvent<string>) => void,
+    listener: (event: MessageEvent) => void,
   ): void
   removeEventListener?(
     type: "message",
-    listener: (event: MessageEvent<string>) => void,
+    listener: (event: MessageEvent) => void,
   ): void
 }
 
@@ -24,7 +24,7 @@ export function handleResponse(
   ws: Websocket,
   handler: (request: LiveRequest) => void,
 ): () => void {
-  const listener = (event: MessageEvent<string>) => {
+  const listener = (event: MessageEvent) => {
     handler(JSON.parse(event.data) as LiveRequest)
   }
 
