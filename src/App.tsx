@@ -91,13 +91,6 @@ function App() {
         </div>
 
         {markdown && <MarkdownOutput markdown={markdown} />}
-
-        <dl className="meta">
-          <div>
-            <dt>WebSocket endpoint</dt>
-            <dd>{wsUrl}</dd>
-          </div>
-        </dl>
       </section>
     </main>
   )
