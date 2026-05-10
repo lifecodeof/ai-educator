@@ -54,7 +54,7 @@ app.get(
       ],
     })
 
-    const cleanupMessage = events.on("audioChunk", (audioChunk, mimeType) => {
+    const cleanupMessage = events.on("audioChunk", (audioChunk, mimeType, transcript) => {
       if (!ws || ws.readyState !== WebSocket.OPEN) {
         return
       }
@@ -63,6 +63,7 @@ app.get(
         type: "audioOutputChunk",
         audioBase64: audioChunk,
         mimeType,
+        transcript,
       })
     })
 

@@ -9,7 +9,7 @@ import { liveConfig } from "./live-config"
 
 type LiveSession = {
   events: Emitter<{
-    audioChunk: (chunk: string, mimeType: string) => void // Encoded as base64
+    audioChunk: (chunk: string, mimeType: string, transcript?: string) => void // Encoded as base64
     error: (event: unknown) => void
     close: (event: CloseEvent) => void
     requestComplete: () => void
@@ -265,7 +265,7 @@ export async function createLiveSession({
           const replyText = finalResponse.text?.trim() ?? ""
           if (replyText) {
             const tts = await synthesizeSpeech({ apiKey, text: replyText, voiceName: "Charon" })
-            events.emit("audioChunk", uint8ArrayToBase64(tts.sound), tts.mimeType ?? DEFAULT_RESPONSE_MIME_TYPE)
+            events.emit("audioChunk", uint8ArrayToBase64(tts.sound), tts.mimeType ?? DEFAULT_RESPONSE_MIME_TYPE, replyText)
           }
 
           // Also send back any textual parts via the append_markdown tool if present
@@ -285,7 +285,7 @@ export async function createLiveSession({
       const replyText = replyResponse.text?.trim() ?? ""
       if (replyText) {
         const tts = await synthesizeSpeech({ apiKey, text: replyText, voiceName: "Charon" })
-        events.emit("audioChunk", uint8ArrayToBase64(tts.sound), tts.mimeType ?? DEFAULT_RESPONSE_MIME_TYPE)
+        events.emit("audioChunk", uint8ArrayToBase64(tts.sound), tts.mimeType ?? DEFAULT_RESPONSE_MIME_TYPE, replyText)
       }
 
       // Send textual parts to append_markdown if available

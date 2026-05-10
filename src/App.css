@@ -67,7 +67,8 @@
   height: 12px;
   border: 2px solid var(--color-border);
   background: var(--color-background);
-  overflow: hidden;
+  overflow: visible;
+  position: relative;
 }
 
 .visualizer-bar {
@@ -79,6 +80,48 @@
 
 .visualizer-bar.active {
   background: var(--color-accent);
+}
+
+.threshold-line {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  background: var(--color-error);
+  opacity: 0.6;
+}
+
+.threshold-control {
+  margin-top: 12px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--color-primary) 5%, transparent);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+
+.threshold-control label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  color: var(--color-text-primary);
+}
+
+.threshold-slider {
+  width: 100%;
+  height: 6px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+}
+
+.threshold-hint {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  font-style: italic;
 }
 
 .processing-indicator {
@@ -172,6 +215,55 @@ button:disabled {
 .btn-danger:hover:not(:disabled) {
   background: var(--color-error);
   color: var(--color-surface);
+}
+
+.view-toggle {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.view-btn {
+  flex: 1;
+  padding: 10px 12px;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.view-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.view-btn.active {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-surface);
+}
+
+.transcript-output {
+  margin-top: 20px;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  text-align: left;
+  line-height: 1.8;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.9rem;
+}
+
+.transcript-content {
+  color: var(--color-text-primary);
 }
 
 .mermaid-chart {

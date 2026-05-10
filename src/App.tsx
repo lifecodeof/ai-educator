@@ -42,13 +42,21 @@ function App() {
     isConnecting,
     isConnected,
     isRecording,
+    isPlayingAudio,
     isProcessing,
     audioLevel,
+    silenceThreshold,
+    setSilenceThreshold,
     errorMessage,
-    markdown,
+    transcript,
+    document,
+    currentView,
+    setCurrentView,
     connect,
     disconnect,
     submitRecording,
+    interruptSpeech,
+    cancelProcessing,
   } = useLiveGateway(wsUrl)
   const { statusClassName, statusText } = useConnectionStatus({
     errorMessage,
@@ -78,7 +86,32 @@ function App() {
             className={`visualizer-bar ${audioLevel >= VISUALIZER_ACTIVE_THRESHOLD ? "active" : ""}`}
             style={{ width: `${audioLevel}%` }}
           />
+          {isRecording && (
+            <div
+              className="threshold-line"
+              style={{ left: `${silenceThreshold}%` }}
+              title={`Silence threshold: ${silenceThreshold}%`}
+            />
+          )}
         </div>
+
+        {isRecording && (
+          <div className="threshold-control">
+            <label htmlFor="threshold-slider">
+              Auto-submit silence threshold: <strong>{silenceThreshold}%</strong>
+            </label>
+            <input
+              id="threshold-slider"
+              type="range"
+              min="5"
+              max="50"
+              value={silenceThreshold}
+              onChange={(e) => setSilenceThreshold(Number(e.target.value))}
+              className="threshold-slider"
+            />
+            <span className="threshold-hint">Auto-submits after 2s of silence below this level</span>
+          </div>
+        )}
 
         <div className="controls">
           <button
@@ -97,7 +130,7 @@ function App() {
           >
             Disconnect
           </button>
-          {isRecording && (
+          {isRecording && !isPlayingAudio && (
             <button
               type="button"
               className={`btn-primary ${isProcessing ? 'processing' : ''}`}
@@ -107,9 +140,53 @@ function App() {
               {isProcessing ? 'Processing...' : 'Submit Recording'}
             </button>
           )}
+          {isPlayingAudio && (
+            <button
+              type="button"
+              className="btn-danger"
+              onClick={interruptSpeech}
+            >
+              Interrupt
+            </button>
+          )}
+          {isProcessing && !isPlayingAudio && (
+            <button
+              type="button"
+              className="btn-danger"
+              onClick={cancelProcessing}
+            >
+              Cancel
+            </button>
+          )}
         </div>
 
-        {markdown && <MarkdownOutput markdown={markdown} />}
+        {(document || transcript) && (
+          <>
+            <div className="view-toggle">
+              <button
+                type="button"
+                className={`view-btn ${currentView === 'document' ? 'active' : ''}`}
+                onClick={() => setCurrentView('document')}
+              >
+                Document {document && `(${document.length})`}
+              </button>
+              <button
+                type="button"
+                className={`view-btn ${currentView === 'transcript' ? 'active' : ''}`}
+                onClick={() => setCurrentView('transcript')}
+              >
+                Transcript {transcript && `(${transcript.split('\n\n').length} responses)`}
+              </button>
+            </div>
+
+            {currentView === 'document' && document && <MarkdownOutput markdown={document} />}
+            {currentView === 'transcript' && transcript && (
+              <div className="transcript-output">
+                <div className="transcript-content">{transcript}</div>
+              </div>
+            )}
+          </>
+        )}
       </section>
     </main>
   )

@@ -11,13 +11,21 @@ interface UseLiveGatewayResult {
   isConnecting: boolean
   isConnected: boolean
   isRecording: boolean
+  isPlayingAudio: boolean
   isProcessing: boolean
   audioLevel: number
+  silenceThreshold: number
+  setSilenceThreshold: (threshold: number) => void
   errorMessage: string | null
-  markdown: string
+  transcript: string
+  document: string
+  currentView: "transcript" | "document"
+  setCurrentView: (view: "transcript" | "document") => void
   connect: () => Promise<void>
   disconnect: () => void
   submitRecording: () => void
+  interruptSpeech: () => void
+  cancelProcessing: () => void
 }
 
 export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
@@ -30,14 +38,21 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
   const nextPlaybackStartRef = useRef(0)
   const animationFrameRef = useRef<number | null>(null)
   const isRecordingRef = useRef(false)
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastAudioLevelRef = useRef(0)
+  const playbackSourcesRef = useRef<AudioBufferSourceNode[]>([])
 
   const [isConnecting, setIsConnecting] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
+  const [isPlayingAudio, setIsPlayingAudio] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [audioLevel, setAudioLevel] = useState(0)
+  const [silenceThreshold, setSilenceThreshold] = useState(15)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [markdown, setMarkdown] = useState<string>('')
+  const [transcript, setTranscript] = useState<string>('')
+  const [document, setDocument] = useState<string>('')
+  const [currentView, setCurrentView] = useState<"transcript" | "document">("document")
 
   const ensurePlaybackContext = useCallback(() => {
     if (!playbackContextRef.current) {
@@ -73,6 +88,30 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
         nextPlaybackStartRef.current = currentTime
       }
 
+      setIsPlayingAudio(true)
+      playbackSourcesRef.current.push(source)
+
+      source.addEventListener('ended', () => {
+        playbackSourcesRef.current = playbackSourcesRef.current.filter((s) => s !== source)
+        if (playbackSourcesRef.current.length === 0) {
+          setIsPlayingAudio(false)
+        }
+      })
+
+      // Stop recording while audio is playing
+      if (isRecordingRef.current) {
+        isRecordingRef.current = false
+        setIsRecording(false)
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current)
+          silenceTimerRef.current = null
+        }
+        if (animationFrameRef.current !== null) {
+          cancelAnimationFrame(animationFrameRef.current)
+          animationFrameRef.current = null
+        }
+      }
+
       source.start(nextPlaybackStartRef.current)
       nextPlaybackStartRef.current += audioBuffer.duration
     },
@@ -100,15 +139,39 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
       const db = 20 * Math.log10(rms + 0.0001)
       const level = Math.max(0, Math.min(100, ((db + 60) / 60) * 100))
       setAudioLevel(level)
+      lastAudioLevelRef.current = level
+
+      // Auto-submit if below threshold for 2 seconds
+      if (level < silenceThreshold) {
+        if (!silenceTimerRef.current) {
+          silenceTimerRef.current = setTimeout(() => {
+            const ws = wsRef.current
+            if (ws && ws.readyState === WebSocket.OPEN && isRecordingRef.current) {
+              // Stop recording before processing
+              isRecordingRef.current = false
+              setIsRecording(false)
+              setIsProcessing(true)
+              sendLiveRequest(ws, { type: 'submitRequest' })
+            }
+            silenceTimerRef.current = null
+          }, 2000)
+        }
+      } else {
+        if (silenceTimerRef.current) {
+          clearTimeout(silenceTimerRef.current)
+          silenceTimerRef.current = null
+        }
+      }
 
       animationFrameRef.current = requestAnimationFrame(tick)
     }
 
     tick()
-  }, [])
+  }, [silenceThreshold])
 
   const handleWorkletMessage = useCallback((event: MessageEvent<Float32Array>) => {
     const ws = wsRef.current
+    // Don't record while processing or not recording
     if (!isRecordingRef.current || !ws || ws.readyState !== WebSocket.OPEN) {
       return
     }
@@ -124,6 +187,11 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
   const stopRecording = useCallback(async () => {
     isRecordingRef.current = false
     setIsRecording(false)
+
+    if (silenceTimerRef.current) {
+      clearTimeout(silenceTimerRef.current)
+      silenceTimerRef.current = null
+    }
 
     if (animationFrameRef.current !== null) {
       cancelAnimationFrame(animationFrameRef.current)
@@ -155,6 +223,11 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
   }, [])
 
   const startRecording = useCallback(async () => {
+    // Don't start recording while processing
+    if (isProcessing) {
+      return
+    }
+
     if (!navigator.mediaDevices?.getUserMedia) {
       setErrorMessage('Microphone access is not available. Please use HTTPS or check browser permissions.')
       return
@@ -203,7 +276,7 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
       setErrorMessage(`Microphone error: ${err.message}`)
       console.error('Failed to start recording:', error)
     }
-  }, [handleWorkletMessage, updateVisualizer])
+  }, [handleWorkletMessage, updateVisualizer, isProcessing])
 
   const cleanupConnection = useCallback(() => {
     wsRef.current = null
@@ -257,9 +330,12 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
       void match(response)
         .with({ type: 'audioOutputChunk' }, async (audioResponse) => {
           await playAudio(decodeBase64(audioResponse.audioBase64))
+          if (audioResponse.transcript) {
+            setTranscript((prev) => (prev ? prev + '\n\n' + audioResponse.transcript : audioResponse.transcript!))
+          }
         })
         .with({ type: 'markdownChunk' }, ({ content }) => {
-          setMarkdown((prev) => prev + content)
+          setDocument((prev) => prev + content)
         })
         .with({ type: 'requestComplete' }, () => {
           setIsProcessing(false)
@@ -292,22 +368,48 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       return
     }
+    // Stop recording when submitting
+    if (isRecordingRef.current) {
+      isRecordingRef.current = false
+      setIsRecording(false)
+    }
     setIsProcessing(true)
     sendLiveRequest(ws, {
       type: 'submitRequest',
     })
   }, [])
 
+  const interruptSpeech = useCallback(() => {
+    playbackSourcesRef.current.forEach((source) => {
+      source.stop()
+    })
+    playbackSourcesRef.current = []
+    setIsPlayingAudio(false)
+    nextPlaybackStartRef.current = 0
+  }, [])
+
+  const cancelProcessing = useCallback(() => {
+    setIsProcessing(false)
+  }, [])
+
   return {
     isConnecting,
     isConnected,
     isRecording,
+    isPlayingAudio,
     isProcessing,
     audioLevel,
+    silenceThreshold,
+    setSilenceThreshold,
     errorMessage,
-    markdown,
+    transcript,
+    document,
+    currentView,
+    setCurrentView,
     connect,
     disconnect,
     submitRecording,
+    interruptSpeech,
+    cancelProcessing,
   }
 }

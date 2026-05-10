@@ -3,6 +3,7 @@ export type LiveResponse =
       type: "audioOutputChunk"
       audioBase64: string
       mimeType: string
+      transcript?: string
     }
   | {
       type: "markdownChunk"
