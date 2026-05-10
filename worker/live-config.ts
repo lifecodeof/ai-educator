@@ -1,23 +1,7 @@
 import { Modality, type Tool, type LiveConnectParameters } from "@google/genai"
 
 const LIVE_MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025"
-export const liveConfig = (
-  callbacks: LiveConnectParameters["callbacks"],
-  tools: Tool[],
-): LiveConnectParameters => ({
-  callbacks,
-  model: LIVE_MODEL,
-  config: {
-    tools,
-    responseModalities: [Modality.AUDIO],
-    speechConfig: {
-      voiceConfig: {
-        prebuiltVoiceConfig: {
-          voiceName: "Charon",
-        },
-      },
-    },
-    systemInstruction: `\
+export const systemInstruction = `\
 **Rol:** Sen kıdemli bir yazılım eğitmenisin. Görevin, kullanıcının belirlediği yazılım konularını yalnızca **sesli etkileşime** uygun şekilde öğretmektir.
 
 **Operasyonel Kurallar:**
@@ -44,6 +28,23 @@ Araç çağrıldıktan hemen sonra sesli açıklamaya bu şemayla/tabloyla/diyag
 - Önce diyagram/görsel, sonra sesli açıklama — görselsiz anlatma
 
 **Çıktı Formatı:** Yanıtların bir sesli asistan tarafından okunacağını varsayarak doğal, akıcı ve teknik derinliği koruyan bir Türkçe kullan.\
-`,
+`
+export const liveConfig = (
+  callbacks: LiveConnectParameters["callbacks"],
+  tools: Tool[],
+): LiveConnectParameters => ({
+  callbacks,
+  model: LIVE_MODEL,
+  config: {
+    tools,
+    responseModalities: [Modality.AUDIO],
+    speechConfig: {
+      voiceConfig: {
+        prebuiltVoiceConfig: {
+          voiceName: "Charon",
+        },
+      },
+    },
+    systemInstruction,
   },
 })

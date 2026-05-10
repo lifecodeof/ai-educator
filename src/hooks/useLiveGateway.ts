@@ -339,6 +339,8 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
         })
         .with({ type: 'requestComplete' }, () => {
           setIsProcessing(false)
+          // Restart recording for the next request
+          void startRecording()
         })
         .with({ type: 'error' }, ({ message, statusCode }) => {
           setIsProcessing(false)

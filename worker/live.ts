@@ -5,7 +5,7 @@ import {
   type FunctionCall,
 } from "@google/genai"
 import { createNanoEvents, type Emitter } from "nanoevents"
-import { liveConfig } from "./live-config"
+import { liveConfig, systemInstruction } from "./live-config"
 
 type GatewayConfig = {
   gatewayId: string
@@ -21,7 +21,9 @@ type LiveSession = {
     requestComplete: () => void
   }>
   session: {
-    sendRealtimeInput: (params: { audio?: { data: string; mimeType?: string } }) => void
+    sendRealtimeInput: (params: {
+      audio?: { data: string; mimeType?: string }
+    }) => void
     submitRequest: () => void
   }
   [Symbol.dispose](): void
@@ -79,7 +81,10 @@ const pcm16ToWav = (pcmBytes: Uint8Array, sampleRate: number) => {
   return new Uint8Array(wavBuffer)
 }
 
-const prepareTranscriptionAudio = (bytes: Uint8Array, mimeType: string | undefined) => {
+const prepareTranscriptionAudio = (
+  bytes: Uint8Array,
+  mimeType: string | undefined,
+) => {
   if (!mimeType) return { bytes, mimeType: "audio/wav" }
   if (!mimeType.toLowerCase().startsWith("audio/pcm")) {
     return { bytes, mimeType }
@@ -94,7 +99,10 @@ const prepareTranscriptionAudio = (bytes: Uint8Array, mimeType: string | undefin
 
 const base64ToUint8Array = (b64: string) => {
   // atob/btoa are available in Cloudflare Workers
-  const binary = typeof atob === "function" ? atob(b64) : Buffer.from(b64, "base64").toString("binary")
+  const binary =
+    typeof atob === "function"
+      ? atob(b64)
+      : Buffer.from(b64, "base64").toString("binary")
   const len = binary.length
   const bytes = new Uint8Array(len)
   for (let i = 0; i < len; i += 1) bytes[i] = binary.charCodeAt(i)
@@ -108,7 +116,8 @@ const uint8ArrayToBase64 = (u8: Uint8Array) => {
     for (let i = 0; i < u8.length; i += chunkSize) {
       const chunk = u8.subarray(i, i + chunkSize)
       let chunkStr = ""
-      for (let j = 0; j < chunk.length; j++) chunkStr += String.fromCharCode(chunk[j])
+      for (let j = 0; j < chunk.length; j++)
+        chunkStr += String.fromCharCode(chunk[j])
       binary += chunkStr
     }
     return btoa(binary)
@@ -196,7 +205,9 @@ export async function createLiveSession({
   }[]
 }): Promise<LiveSession> {
   if (!apiKey && !cfGatewayConfig) {
-    throw new Error("Either API key or Cloudflare Gateway credentials must be provided.")
+    throw new Error(
+      "Either API key or Cloudflare Gateway credentials must be provided.",
+    )
   }
 
   const ai = createGenAIClient(apiKey!, cfGatewayConfig)
@@ -234,7 +245,10 @@ export async function createLiveSession({
     const rawAudio = concatUint8Arrays(bufferedAudioChunks)
     bufferedAudioChunks.length = 0
 
-    const audioInput = prepareTranscriptionAudio(rawAudio, lastInputAudioMimeType)
+    const audioInput = prepareTranscriptionAudio(
+      rawAudio,
+      lastInputAudioMimeType,
+    )
 
     conversationHistory.push({
       role: "user",
@@ -249,14 +263,19 @@ export async function createLiveSession({
     })
 
     try {
-      const toolDeclarations = toolSet.map((t) => ({ functionDeclarations: [t.def] }))
+      const toolDeclarations = toolSet.map((t) => ({
+        functionDeclarations: [t.def],
+      }))
 
       const replyResponse = await ai.models.generateContent({
         model: TEXT_MODEL,
         contents: conversationHistory,
         config: {
           tools: toolDeclarations,
-          systemInstruction: (liveConfig as any)({ onmessage: () => {}, onerror: () => {}, onclose: () => {} }, []).config.systemInstruction,
+          systemInstruction: (liveConfig as any)(
+            { onmessage: () => {}, onerror: () => {}, onclose: () => {} },
+            [],
+          ).config.systemInstruction,
         },
       })
 
@@ -278,14 +297,18 @@ export async function createLiveSession({
         const functionResponses = await executeToolCalls(functionCalls)
         if (functionResponses.length > 0) {
           // Add the function responses back into the conversation and ask for a final answer
-          conversationHistory.push({ parts: functionResponses.map((fr) => ({ functionResponse: fr as any })) })
+          conversationHistory.push({
+            parts: functionResponses.map((fr) => ({
+              functionResponse: fr as any,
+            })),
+          })
 
           const finalResponse = await ai.models.generateContent({
             model: TEXT_MODEL,
             contents: conversationHistory,
             config: {
               tools: toolDeclarations,
-              systemInstruction: (liveConfig as any)({ onmessage: () => {}, onerror: () => {}, onclose: () => {} }, []).config.systemInstruction,
+              systemInstruction,
             },
           })
 
@@ -295,14 +318,26 @@ export async function createLiveSession({
           // Use finalResponse.text as reply text
           const replyText = finalResponse.text?.trim() ?? ""
           if (replyText) {
-            const tts = await synthesizeSpeech({ apiKey: apiKey!, cfGatewayConfig, text: replyText, voiceName: "Charon" })
-            events.emit("audioChunk", uint8ArrayToBase64(tts.sound), tts.mimeType ?? DEFAULT_RESPONSE_MIME_TYPE, replyText)
+            const tts = await synthesizeSpeech({
+              apiKey: apiKey!,
+              cfGatewayConfig,
+              text: replyText,
+              voiceName: "Charon",
+            })
+            events.emit(
+              "audioChunk",
+              uint8ArrayToBase64(tts.sound),
+              tts.mimeType ?? DEFAULT_RESPONSE_MIME_TYPE,
+              replyText,
+            )
           }
 
           // Also send back any textual parts via the append_markdown tool if present
           for (const part of finalContent?.parts ?? []) {
             if (part.text) {
-              const appendTool = toolSet.find((t) => t.def.name === "append_markdown")
+              const appendTool = toolSet.find(
+                (t) => t.def.name === "append_markdown",
+              )
               if (appendTool) await appendTool.call({ content: part.text })
             }
           }
@@ -315,14 +350,26 @@ export async function createLiveSession({
       // No function calls: proceed normally
       const replyText = replyResponse.text?.trim() ?? ""
       if (replyText) {
-        const tts = await synthesizeSpeech({ apiKey: apiKey!, cfGatewayConfig, text: replyText, voiceName: "Charon" })
-        events.emit("audioChunk", uint8ArrayToBase64(tts.sound), tts.mimeType ?? DEFAULT_RESPONSE_MIME_TYPE, replyText)
+        const tts = await synthesizeSpeech({
+          apiKey: apiKey!,
+          cfGatewayConfig,
+          text: replyText,
+          voiceName: "Charon",
+        })
+        events.emit(
+          "audioChunk",
+          uint8ArrayToBase64(tts.sound),
+          tts.mimeType ?? DEFAULT_RESPONSE_MIME_TYPE,
+          replyText,
+        )
       }
 
       // Send textual parts to append_markdown if available
       for (const part of res.parts ?? []) {
         if (part.text) {
-          const appendTool = toolSet.find((t) => t.def.name === "append_markdown")
+          const appendTool = toolSet.find(
+            (t) => t.def.name === "append_markdown",
+          )
           if (appendTool) await appendTool.call({ content: part.text })
         }
       }
@@ -335,7 +382,9 @@ export async function createLiveSession({
   }
 
   const session = {
-    sendRealtimeInput: (params: { audio?: { data: string; mimeType?: string } }) => {
+    sendRealtimeInput: (params: {
+      audio?: { data: string; mimeType?: string }
+    }) => {
       if (!params?.audio?.data) return
       const chunk = base64ToUint8Array(params.audio.data)
       bufferedAudioChunks.push(chunk)
@@ -343,12 +392,16 @@ export async function createLiveSession({
 
       if (inactivityTimer) clearTimeout(inactivityTimer)
       inactivityTimer = setTimeout(() => {
-        processQueue = processQueue.then(processBufferedAudio).catch((err) => events.emit("error", err))
+        processQueue = processQueue
+          .then(processBufferedAudio)
+          .catch((err) => events.emit("error", err))
       }, 700)
     },
     submitRequest: () => {
       if (inactivityTimer) clearTimeout(inactivityTimer)
-      processQueue = processQueue.then(processBufferedAudio).catch((err) => events.emit("error", err))
+      processQueue = processQueue
+        .then(processBufferedAudio)
+        .catch((err) => events.emit("error", err))
     },
   }
 
