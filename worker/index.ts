@@ -77,8 +77,15 @@ app.get(
       })
     })
 
-    const cleanupError = events.on("error", () => {
+    const cleanupError = events.on("error", (error) => {
       if (ws && ws.readyState === WebSocket.OPEN) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        const statusCode = (error as any)?.status || (error as any)?.statusCode
+        sendLiveResponse(ws, {
+          type: "error",
+          message: errorMessage,
+          statusCode: statusCode,
+        })
         ws.close(1011, "Live session error")
       }
     })

@@ -12,6 +12,11 @@ export type LiveResponse =
   | {
       type: "requestComplete"
     }
+  | {
+      type: "error"
+      message: string
+      statusCode?: number
+    }
 
 export type Websocket = {
   send(data: string): void

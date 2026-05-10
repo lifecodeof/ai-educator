@@ -340,6 +340,11 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
         .with({ type: 'requestComplete' }, () => {
           setIsProcessing(false)
         })
+        .with({ type: 'error' }, ({ message, statusCode }) => {
+          setIsProcessing(false)
+          const errorDisplay = statusCode ? `[${statusCode}] ${message}` : message
+          setErrorMessage(errorDisplay)
+        })
         .exhaustive()
     })
 
