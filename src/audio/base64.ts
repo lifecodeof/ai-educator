@@ -1,5 +1,5 @@
 export function encodeBase64(bytes: Uint8Array): string {
-  let raw = ''
+  let raw = ""
   for (let i = 0; i < bytes.length; i += 1) {
     raw += String.fromCharCode(bytes[i])
   }

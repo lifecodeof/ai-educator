@@ -98,7 +98,8 @@ function App() {
         {isRecording && (
           <div className="threshold-control">
             <label htmlFor="threshold-slider">
-              Auto-submit silence threshold: <strong>{silenceThreshold}%</strong>
+              Auto-submit silence threshold:{" "}
+              <strong>{silenceThreshold}%</strong>
             </label>
             <input
               id="threshold-slider"
@@ -109,7 +110,9 @@ function App() {
               onChange={(e) => setSilenceThreshold(Number(e.target.value))}
               className="threshold-slider"
             />
-            <span className="threshold-hint">Auto-submits after 2s of silence below this level</span>
+            <span className="threshold-hint">
+              Auto-submits after 2s of silence below this level
+            </span>
           </div>
         )}
 
@@ -133,11 +136,11 @@ function App() {
           {isRecording && !isPlayingAudio && (
             <button
               type="button"
-              className={`btn-primary ${isProcessing ? 'processing' : ''}`}
+              className={`btn-primary ${isProcessing ? "processing" : ""}`}
               onClick={submitRecording}
               disabled={isProcessing}
             >
-              {isProcessing ? 'Processing...' : 'Submit Recording'}
+              {isProcessing ? "Processing..." : "Submit Recording"}
             </button>
           )}
           {isPlayingAudio && (
@@ -165,22 +168,25 @@ function App() {
             <div className="view-toggle">
               <button
                 type="button"
-                className={`view-btn ${currentView === 'document' ? 'active' : ''}`}
-                onClick={() => setCurrentView('document')}
+                className={`view-btn ${currentView === "document" ? "active" : ""}`}
+                onClick={() => setCurrentView("document")}
               >
                 Document {document && `(${document.length})`}
               </button>
               <button
                 type="button"
-                className={`view-btn ${currentView === 'transcript' ? 'active' : ''}`}
-                onClick={() => setCurrentView('transcript')}
+                className={`view-btn ${currentView === "transcript" ? "active" : ""}`}
+                onClick={() => setCurrentView("transcript")}
               >
-                Transcript {transcript && `(${transcript.split('\n\n').length} responses)`}
+                Transcript{" "}
+                {transcript && `(${transcript.split("\n\n").length} responses)`}
               </button>
             </div>
 
-            {currentView === 'document' && document && <MarkdownOutput markdown={document} />}
-            {currentView === 'transcript' && transcript && (
+            {currentView === "document" && document && (
+              <MarkdownOutput markdown={document} />
+            )}
+            {currentView === "transcript" && transcript && (
               <div className="transcript-output">
                 <div className="transcript-content">{transcript}</div>
               </div>

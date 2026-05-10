@@ -9,7 +9,12 @@
   --color-error: #ef5350;
   --color-border: #b0bec5;
   --color-recording: #ff6b6b;
-  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family:
+    Inter,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
   line-height: 1.5;
   font-weight: 400;
   color: var(--color-text-primary);

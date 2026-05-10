@@ -17,24 +17,24 @@ export function useConnectionStatus({
   isConnecting,
 }: UseConnectionStatusOptions): UseConnectionStatusResult {
   const statusClassName = errorMessage
-    ? 'error'
+    ? "error"
     : isRecording
-      ? 'recording'
+      ? "recording"
       : isConnected
-        ? 'connected'
+        ? "connected"
         : isConnecting
-          ? 'connecting'
-          : 'ready'
+          ? "connecting"
+          : "ready"
 
   const statusText = errorMessage
     ? errorMessage
     : isRecording
-      ? 'Recording'
+      ? "Recording"
       : isConnected
-        ? 'Connected'
+        ? "Connected"
         : isConnecting
-          ? 'Connecting'
-          : 'Ready to connect'
+          ? "Connecting"
+          : "Ready to connect"
 
   return { statusClassName, statusText }
 }

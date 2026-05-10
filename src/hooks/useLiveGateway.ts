@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { match } from 'ts-pattern'
-import { sendMessage as sendLiveRequest } from '../../shared/live-request'
-import { handleResponse as handleLiveResponse } from '../../shared/live-response'
-import { decodeBase64, encodeBase64 } from '../audio/base64'
-import { getAudioContextCtor } from '../audio/audio-context'
-import { PLAYBACK_SAMPLE_RATE, RECORDING_SAMPLE_RATE } from '../audio/constants'
-import { convertFloat32ToInt16 } from '../audio/pcm'
+import { useCallback, useEffect, useRef, useState } from "react"
+import { match } from "ts-pattern"
+import { sendMessage as sendLiveRequest } from "../../shared/live-request"
+import { handleResponse as handleLiveResponse } from "../../shared/live-response"
+import { decodeBase64, encodeBase64 } from "../audio/base64"
+import { getAudioContextCtor } from "../audio/audio-context"
+import { PLAYBACK_SAMPLE_RATE, RECORDING_SAMPLE_RATE } from "../audio/constants"
+import { convertFloat32ToInt16 } from "../audio/pcm"
 
 interface UseLiveGatewayResult {
   isConnecting: boolean
@@ -50,9 +50,11 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
   const [audioLevel, setAudioLevel] = useState(0)
   const [silenceThreshold, setSilenceThreshold] = useState(15)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [transcript, setTranscript] = useState<string>('')
-  const [document, setDocument] = useState<string>('')
-  const [currentView, setCurrentView] = useState<"transcript" | "document">("document")
+  const [transcript, setTranscript] = useState<string>("")
+  const [document, setDocument] = useState<string>("")
+  const [currentView, setCurrentView] = useState<"transcript" | "document">(
+    "document",
+  )
 
   const ensurePlaybackContext = useCallback(() => {
     if (!playbackContextRef.current) {
@@ -67,12 +69,16 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
   const playAudio = useCallback(
     async (arrayBuffer: ArrayBuffer) => {
       const playbackContext = ensurePlaybackContext()
-      if (playbackContext.state === 'suspended') {
+      if (playbackContext.state === "suspended") {
         await playbackContext.resume()
       }
 
       const pcmData = new Int16Array(arrayBuffer)
-      const audioBuffer = playbackContext.createBuffer(1, pcmData.length, PLAYBACK_SAMPLE_RATE)
+      const audioBuffer = playbackContext.createBuffer(
+        1,
+        pcmData.length,
+        PLAYBACK_SAMPLE_RATE,
+      )
       const channelData = audioBuffer.getChannelData(0)
 
       for (let i = 0; i < pcmData.length; i += 1) {
@@ -91,8 +97,10 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
       setIsPlayingAudio(true)
       playbackSourcesRef.current.push(source)
 
-      source.addEventListener('ended', () => {
-        playbackSourcesRef.current = playbackSourcesRef.current.filter((s) => s !== source)
+      source.addEventListener("ended", () => {
+        playbackSourcesRef.current = playbackSourcesRef.current.filter(
+          (s) => s !== source,
+        )
         if (playbackSourcesRef.current.length === 0) {
           setIsPlayingAudio(false)
         }
@@ -146,12 +154,16 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
         if (!silenceTimerRef.current) {
           silenceTimerRef.current = setTimeout(() => {
             const ws = wsRef.current
-            if (ws && ws.readyState === WebSocket.OPEN && isRecordingRef.current) {
+            if (
+              ws &&
+              ws.readyState === WebSocket.OPEN &&
+              isRecordingRef.current
+            ) {
               // Stop recording before processing
               isRecordingRef.current = false
               setIsRecording(false)
               setIsProcessing(true)
-              sendLiveRequest(ws, { type: 'submitRequest' })
+              sendLiveRequest(ws, { type: "submitRequest" })
             }
             silenceTimerRef.current = null
           }, 2000)
@@ -169,20 +181,23 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
     tick()
   }, [silenceThreshold])
 
-  const handleWorkletMessage = useCallback((event: MessageEvent<Float32Array>) => {
-    const ws = wsRef.current
-    // Don't record while processing or not recording
-    if (!isRecordingRef.current || !ws || ws.readyState !== WebSocket.OPEN) {
-      return
-    }
+  const handleWorkletMessage = useCallback(
+    (event: MessageEvent<Float32Array>) => {
+      const ws = wsRef.current
+      // Don't record while processing or not recording
+      if (!isRecordingRef.current || !ws || ws.readyState !== WebSocket.OPEN) {
+        return
+      }
 
-    const pcmInt16 = convertFloat32ToInt16(event.data)
-    sendLiveRequest(ws, {
-      type: 'audioInputChunk',
-      audioBase64: encodeBase64(new Uint8Array(pcmInt16.buffer)),
-      mimeType: 'audio/pcm;rate=16000',
-    })
-  }, [])
+      const pcmInt16 = convertFloat32ToInt16(event.data)
+      sendLiveRequest(ws, {
+        type: "audioInputChunk",
+        audioBase64: encodeBase64(new Uint8Array(pcmInt16.buffer)),
+        mimeType: "audio/pcm;rate=16000",
+      })
+    },
+    [],
+  )
 
   const stopRecording = useCallback(async () => {
     isRecordingRef.current = false
@@ -229,7 +244,9 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
     }
 
     if (!navigator.mediaDevices?.getUserMedia) {
-      setErrorMessage('Microphone access is not available. Please use HTTPS or check browser permissions.')
+      setErrorMessage(
+        "Microphone access is not available. Please use HTTPS or check browser permissions.",
+      )
       return
     }
 
@@ -248,14 +265,17 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
         sampleRate: RECORDING_SAMPLE_RATE,
       })
 
-      await recordingContext.audioWorklet.addModule('/audio-processor.js')
+      await recordingContext.audioWorklet.addModule("/audio-processor.js")
 
       const source = recordingContext.createMediaStreamSource(micStream)
       const analyser = recordingContext.createAnalyser()
       analyser.fftSize = 2048
       analyser.smoothingTimeConstant = 0.8
 
-      const workletNode = new AudioWorkletNode(recordingContext, 'microphone-stream-processor')
+      const workletNode = new AudioWorkletNode(
+        recordingContext,
+        "microphone-stream-processor",
+      )
       workletNode.port.onmessage = handleWorkletMessage
       workletNode.port.start()
 
@@ -274,7 +294,7 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
     } catch (error) {
       const err = error as Error
       setErrorMessage(`Microphone error: ${err.message}`)
-      console.error('Failed to start recording:', error)
+      console.error("Failed to start recording:", error)
     }
   }, [handleWorkletMessage, updateVisualizer, isProcessing])
 
@@ -292,7 +312,10 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
       return
     }
 
-    if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+    if (
+      ws.readyState === WebSocket.OPEN ||
+      ws.readyState === WebSocket.CONNECTING
+    ) {
       ws.close()
       return
     }
@@ -309,18 +332,19 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
     setIsConnecting(true)
 
     const playbackContext = ensurePlaybackContext()
-    if (playbackContext.state === 'suspended') {
+    if (playbackContext.state === "suspended") {
       await playbackContext.resume()
     }
 
     const ws = new WebSocket(wsUrl)
     wsRef.current = ws
 
-    ws.addEventListener('open', () => {
+    ws.addEventListener("open", () => {
       setIsConnecting(false)
       setIsConnected(true)
       void startRecording().catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : 'Failed to start recording.'
+        const message =
+          error instanceof Error ? error.message : "Failed to start recording."
         setErrorMessage(message)
         ws.close()
       })
@@ -328,37 +352,50 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
 
     const cleanupResponseHandler = handleLiveResponse(ws, (response) => {
       void match(response)
-        .with({ type: 'audioOutputChunk' }, async (audioResponse) => {
+        .with({ type: "audioOutputChunk" }, async (audioResponse) => {
           await playAudio(decodeBase64(audioResponse.audioBase64))
           if (audioResponse.transcript) {
-            setTranscript((prev) => (prev ? prev + '\n\n' + audioResponse.transcript : audioResponse.transcript!))
+            setTranscript((prev) =>
+              prev
+                ? prev + "\n\n" + audioResponse.transcript
+                : audioResponse.transcript!,
+            )
           }
         })
-        .with({ type: 'markdownChunk' }, ({ content }) => {
+        .with({ type: "markdownChunk" }, ({ content }) => {
           setDocument((prev) => prev + content)
         })
-        .with({ type: 'requestComplete' }, () => {
+        .with({ type: "requestComplete" }, () => {
           setIsProcessing(false)
           // Restart recording for the next request
           void startRecording()
         })
-        .with({ type: 'error' }, ({ message, statusCode }) => {
+        .with({ type: "error" }, ({ message, statusCode }) => {
           setIsProcessing(false)
-          const errorDisplay = statusCode ? `[${statusCode}] ${message}` : message
+          const errorDisplay = statusCode
+            ? `[${statusCode}] ${message}`
+            : message
           setErrorMessage(errorDisplay)
         })
         .exhaustive()
     })
 
-    ws.addEventListener('error', () => {
-      setErrorMessage('WebSocket connection failed.')
+    ws.addEventListener("error", () => {
+      setErrorMessage("WebSocket connection failed.")
     })
 
-    ws.addEventListener('close', () => {
+    ws.addEventListener("close", () => {
       cleanupResponseHandler()
       cleanupConnection()
     })
-  }, [cleanupConnection, ensurePlaybackContext, isConnecting, playAudio, startRecording, wsUrl])
+  }, [
+    cleanupConnection,
+    ensurePlaybackContext,
+    isConnecting,
+    playAudio,
+    startRecording,
+    wsUrl,
+  ])
 
   useEffect(() => {
     return () => {
@@ -382,7 +419,7 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
     }
     setIsProcessing(true)
     sendLiveRequest(ws, {
-      type: 'submitRequest',
+      type: "submitRequest",
     })
   }, [])
 

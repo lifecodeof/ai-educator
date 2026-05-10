@@ -11,4 +11,4 @@ class MicrophoneStreamProcessor extends AudioWorkletProcessor {
   }
 }
 
-registerProcessor('microphone-stream-processor', MicrophoneStreamProcessor)
+registerProcessor("microphone-stream-processor", MicrophoneStreamProcessor)
