@@ -19,19 +19,24 @@ app.get(
   "/api/live",
   upgradeWebSocket(async (c) => {
     let ws: WSContext<WebSocket> | undefined
-    
+
     // Determine API configuration - prefer Cloudflare Gateway if available
     const apiKey = c.env.GEMINI_API_KEY
-    const cfGatewayConfig = c.env.CF_AIG_GATEWAY_ID && c.env.CF_AIG_ACCOUNT_ID && c.env.CF_AIG_TOKEN ? {
-      gatewayId: c.env.CF_AIG_GATEWAY_ID,
-      accountId: c.env.CF_AIG_ACCOUNT_ID,
-      token: c.env.CF_AIG_TOKEN,
-    } : null
-    
+    const cfGatewayConfig =
+      c.env.CF_AIG_GATEWAY_ID && c.env.CF_AIG_ACCOUNT_ID && c.env.CF_AIG_TOKEN
+        ? {
+            gatewayId: c.env.CF_AIG_GATEWAY_ID,
+            accountId: c.env.CF_AIG_ACCOUNT_ID,
+            token: c.env.CF_AIG_TOKEN,
+          }
+        : null
+
     if (!apiKey && !cfGatewayConfig) {
-      throw new Error("Either GEMINI_API_KEY or Cloudflare Gateway credentials (CF_AIG_*) must be configured.")
+      throw new Error(
+        "Either GEMINI_API_KEY or Cloudflare Gateway credentials (CF_AIG_*) must be configured.",
+      )
     }
-    
+
     const {
       events,
       session,
@@ -59,7 +64,6 @@ app.get(
             },
           },
           async call({ content }) {
-            console.log({ content })
             if (ws)
               sendLiveResponse(ws, {
                 type: "markdownChunk",
@@ -71,18 +75,21 @@ app.get(
       ],
     })
 
-    const cleanupMessage = events.on("audioChunk", (audioChunk, mimeType, transcript) => {
-      if (!ws || ws.readyState !== WebSocket.OPEN) {
-        return
-      }
+    const cleanupMessage = events.on(
+      "audioChunk",
+      (audioChunk, mimeType, transcript) => {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+          return
+        }
 
-      sendLiveResponse(ws, {
-        type: "audioOutputChunk",
-        audioBase64: audioChunk,
-        mimeType,
-        transcript,
-      })
-    })
+        sendLiveResponse(ws, {
+          type: "audioOutputChunk",
+          audioBase64: audioChunk,
+          mimeType,
+          transcript,
+        })
+      },
+    )
 
     const cleanupComplete = events.on("requestComplete", () => {
       if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -96,7 +103,8 @@ app.get(
 
     const cleanupError = events.on("error", (error) => {
       if (ws && ws.readyState === WebSocket.OPEN) {
-        const errorMessage = error instanceof Error ? error.message : String(error)
+        const errorMessage =
+          error instanceof Error ? error.message : String(error)
         const statusCode = (error as any)?.status || (error as any)?.statusCode
         sendLiveResponse(ws, {
           type: "error",
