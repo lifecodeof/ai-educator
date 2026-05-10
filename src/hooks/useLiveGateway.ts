@@ -38,8 +38,11 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
   const nextPlaybackStartRef = useRef(0)
   const animationFrameRef = useRef<number | null>(null)
   const isRecordingRef = useRef(false)
+  const isPlayingAudioRef = useRef(false)
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastAudioLevelRef = useRef(0)
+  const silenceThresholdRef = useRef(15)
+  const pendingRecordingRestartRef = useRef(false)
   const playbackSourcesRef = useRef<AudioBufferSourceNode[]>([])
 
   const [isConnecting, setIsConnecting] = useState(false)
@@ -55,6 +58,14 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
   const [currentView, setCurrentView] = useState<"transcript" | "document">(
     "document",
   )
+
+  useEffect(() => {
+    isPlayingAudioRef.current = isPlayingAudio
+  }, [isPlayingAudio])
+
+  useEffect(() => {
+    silenceThresholdRef.current = silenceThreshold
+  }, [silenceThreshold])
 
   const ensurePlaybackContext = useCallback(() => {
     if (!playbackContextRef.current) {
@@ -149,8 +160,8 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
       setAudioLevel(level)
       lastAudioLevelRef.current = level
 
-      // Auto-submit if below threshold for 2 seconds
-      if (level < silenceThreshold) {
+      // Auto-submit if below threshold for 1 seconds
+      if (level < silenceThresholdRef.current) {
         if (!silenceTimerRef.current) {
           silenceTimerRef.current = setTimeout(() => {
             const ws = wsRef.current
@@ -166,7 +177,7 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
               sendLiveRequest(ws, { type: "submitRequest" })
             }
             silenceTimerRef.current = null
-          }, 2000)
+          }, 1000)
         }
       } else {
         if (silenceTimerRef.current) {
@@ -179,7 +190,7 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
     }
 
     tick()
-  }, [silenceThreshold])
+  }, [])
 
   const handleWorkletMessage = useCallback(
     (event: MessageEvent<Float32Array>) => {
@@ -201,6 +212,7 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
 
   const stopRecording = useCallback(async () => {
     isRecordingRef.current = false
+    pendingRecordingRestartRef.current = false
     setIsRecording(false)
 
     if (silenceTimerRef.current) {
@@ -239,7 +251,7 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
 
   const startRecording = useCallback(async () => {
     // Don't start recording while processing
-    if (isProcessing) {
+    if (isProcessing || isPlayingAudioRef.current) {
       return
     }
 
@@ -367,6 +379,10 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
         })
         .with({ type: "requestComplete" }, () => {
           setIsProcessing(false)
+          if (isPlayingAudioRef.current) {
+            pendingRecordingRestartRef.current = true
+            return
+          }
           // Restart recording for the next request
           void startRecording()
         })
@@ -396,6 +412,13 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
     startRecording,
     wsUrl,
   ])
+
+  useEffect(() => {
+    if (!isPlayingAudio && pendingRecordingRestartRef.current) {
+      pendingRecordingRestartRef.current = false
+      void startRecording()
+    }
+  }, [isPlayingAudio, startRecording])
 
   useEffect(() => {
     return () => {

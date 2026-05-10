@@ -1,6 +1,7 @@
 interface UseConnectionStatusOptions {
   errorMessage: string | null
   isRecording: boolean
+  isPlayingAudio: boolean
   isConnected: boolean
   isConnecting: boolean
 }
@@ -13,6 +14,7 @@ interface UseConnectionStatusResult {
 export function useConnectionStatus({
   errorMessage,
   isRecording,
+  isPlayingAudio,
   isConnected,
   isConnecting,
 }: UseConnectionStatusOptions): UseConnectionStatusResult {
@@ -20,6 +22,8 @@ export function useConnectionStatus({
     ? "error"
     : isRecording
       ? "recording"
+      : isPlayingAudio
+        ? "speaking"
       : isConnected
         ? "connected"
         : isConnecting
@@ -30,6 +34,8 @@ export function useConnectionStatus({
     ? errorMessage
     : isRecording
       ? "Recording"
+      : isPlayingAudio
+        ? "Speaking"
       : isConnected
         ? "Connected"
         : isConnecting
