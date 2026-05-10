@@ -124,7 +124,15 @@ const normalizeTtsMimeType = (mimeType?: string) => {
   return normalized
 }
 
-const synthesizeSpeech = async ({ apiKey, text, voiceName = "Charon" }: { apiKey: string; text: string; voiceName?: string }) => {
+const synthesizeSpeech = async ({
+  apiKey,
+  text,
+  voiceName = "Charon",
+}: {
+  apiKey: string
+  text: string
+  voiceName?: string
+}) => {
   const ai = new GoogleGenAI({ apiKey })
   const response = await ai.models.generateContent({
     model: TTS_MODEL,
@@ -156,19 +164,28 @@ const synthesizeSpeech = async ({ apiKey, text, voiceName = "Charon" }: { apiKey
 
 export async function createLiveSession({
   apiKey,
+  cfGatewayConfig,
   toolSet,
 }: {
-  apiKey: string
+  apiKey?: string
+  cfGatewayConfig?: {
+    gatewayId: string
+    accountId: string
+    token: string
+  }
   toolSet: {
     def: any
     call: (args: Record<string, unknown>) => Promise<Record<string, unknown>>
   }[]
 }): Promise<LiveSession> {
-  if (!apiKey) {
-    throw new Error("GEMINI_API_KEY is not configured.")
+  if (!apiKey && !cfGatewayConfig) {
+    throw new Error("Either API key or Cloudflare Gateway credentials must be provided.")
   }
 
-  const ai = new GoogleGenAI({ apiKey })
+  // Use Cloudflare Gateway token if available, otherwise use API key
+  const effectiveApiKey = cfGatewayConfig ? cfGatewayConfig.token : apiKey!
+
+  const ai = new GoogleGenAI({ apiKey: effectiveApiKey })
   const events: LiveSession["events"] = createNanoEvents()
 
   const bufferedAudioChunks: Uint8Array[] = []
@@ -264,7 +281,7 @@ export async function createLiveSession({
           // Use finalResponse.text as reply text
           const replyText = finalResponse.text?.trim() ?? ""
           if (replyText) {
-            const tts = await synthesizeSpeech({ apiKey, text: replyText, voiceName: "Charon" })
+            const tts = await synthesizeSpeech({ apiKey: effectiveApiKey, text: replyText, voiceName: "Charon" })
             events.emit("audioChunk", uint8ArrayToBase64(tts.sound), tts.mimeType ?? DEFAULT_RESPONSE_MIME_TYPE, replyText)
           }
 
@@ -284,7 +301,7 @@ export async function createLiveSession({
       // No function calls: proceed normally
       const replyText = replyResponse.text?.trim() ?? ""
       if (replyText) {
-        const tts = await synthesizeSpeech({ apiKey, text: replyText, voiceName: "Charon" })
+        const tts = await synthesizeSpeech({ apiKey: effectiveApiKey, text: replyText, voiceName: "Charon" })
         events.emit("audioChunk", uint8ArrayToBase64(tts.sound), tts.mimeType ?? DEFAULT_RESPONSE_MIME_TYPE, replyText)
       }
 

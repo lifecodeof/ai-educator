@@ -7,7 +7,10 @@ import { sendMessage as sendLiveResponse } from "../shared/live-response"
 import { createLiveSession } from "./live"
 
 type Bindings = {
-  GEMINI_API_KEY: string
+  GEMINI_API_KEY?: string
+  CF_AIG_GATEWAY_ID?: string
+  CF_AIG_ACCOUNT_ID?: string
+  CF_AIG_TOKEN?: string
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -16,12 +19,26 @@ app.get(
   "/api/live",
   upgradeWebSocket(async (c) => {
     let ws: WSContext<WebSocket> | undefined
+    
+    // Determine API configuration - prefer Cloudflare Gateway if available
+    const apiKey = c.env.GEMINI_API_KEY
+    const cfGatewayConfig = c.env.CF_AIG_GATEWAY_ID && c.env.CF_AIG_ACCOUNT_ID && c.env.CF_AIG_TOKEN ? {
+      gatewayId: c.env.CF_AIG_GATEWAY_ID,
+      accountId: c.env.CF_AIG_ACCOUNT_ID,
+      token: c.env.CF_AIG_TOKEN,
+    } : null
+    
+    if (!apiKey && !cfGatewayConfig) {
+      throw new Error("Either GEMINI_API_KEY or Cloudflare Gateway credentials (CF_AIG_*) must be configured.")
+    }
+    
     const {
       events,
       session,
       [Symbol.dispose]: dispose,
     } = await createLiveSession({
-      apiKey: c.env.GEMINI_API_KEY,
+      apiKey: apiKey || undefined,
+      cfGatewayConfig: cfGatewayConfig || undefined,
       toolSet: [
         {
           def: {
