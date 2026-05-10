@@ -130,6 +130,11 @@
   opacity: 0.6;
 }
 
+.voice-threshold-line {
+  background: var(--color-accent);
+  opacity: 0.8;
+}
+
 .threshold-control {
   margin-top: 12px;
   padding: 12px;

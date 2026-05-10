@@ -101,6 +101,13 @@ function App() {
                   title={`Silence threshold: ${silenceThreshold}%`}
                 />
               )}
+              {(isRecording || isPlayingAudio) && voiceInterruptEnabled && (
+                <div
+                  className="threshold-line voice-threshold-line"
+                  style={{ left: `${voiceInterruptThreshold}%` }}
+                  title={`Voice interrupt threshold: ${voiceInterruptThreshold}%`}
+                />
+              )}
             </div>
 
             {isRecording && !isProcessing && !isPlayingAudio && (
