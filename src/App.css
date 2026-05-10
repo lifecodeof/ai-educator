@@ -84,6 +84,11 @@
   color: var(--color-accent);
 }
 
+.status.processing {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
 .status.recording {
   border-color: var(--color-recording);
   color: var(--color-recording);
@@ -141,6 +146,19 @@
   text-transform: uppercase;
   margin-bottom: 8px;
   color: var(--color-text-primary);
+}
+
+.voice-control label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-transform: none;
+  font-size: 0.85rem;
+}
+
+.voice-control input[type="checkbox"] {
+  width: auto;
+  accent-color: var(--color-primary);
 }
 
 .threshold-slider {

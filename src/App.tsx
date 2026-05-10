@@ -44,9 +44,13 @@ function App() {
     isRecording,
     isPlayingAudio,
     isProcessing,
+    voiceInterruptEnabled,
+    voiceInterruptThreshold,
     audioLevel,
     silenceThreshold,
     setSilenceThreshold,
+    setVoiceInterruptEnabled,
+    setVoiceInterruptThreshold,
     errorMessage,
     transcript,
     document,
@@ -62,6 +66,7 @@ function App() {
     errorMessage,
     isRecording,
     isPlayingAudio,
+    isProcessing,
     isConnected,
     isConnecting,
   })
@@ -98,7 +103,7 @@ function App() {
               )}
             </div>
 
-            {isRecording && (
+            {isRecording && !isProcessing && !isPlayingAudio && (
               <div className="threshold-control">
                 <label htmlFor="threshold-slider">
                   Auto-submit silence threshold:{" "}
@@ -119,6 +124,34 @@ function App() {
               </div>
             )}
 
+            <div className="threshold-control voice-control">
+              <label htmlFor="voice-interrupt-enabled">
+                <input
+                  id="voice-interrupt-enabled"
+                  type="checkbox"
+                  checked={voiceInterruptEnabled}
+                  onChange={(e) => setVoiceInterruptEnabled(e.target.checked)}
+                />{" "}
+                Voice interruption
+              </label>
+              <input
+                id="voice-interrupt-threshold"
+                type="range"
+                min="1"
+                max="90"
+                value={voiceInterruptThreshold}
+                onChange={(e) =>
+                  setVoiceInterruptThreshold(Number(e.target.value))
+                }
+                className="threshold-slider"
+                disabled={!voiceInterruptEnabled}
+              />
+              <span className="threshold-hint">
+                Interrupts the model immediately when your voice exceeds this
+                level
+              </span>
+            </div>
+
             <div className="controls">
               <button
                 type="button"
@@ -136,7 +169,7 @@ function App() {
               >
                 Disconnect
               </button>
-              {isRecording && !isPlayingAudio && (
+              {isRecording && !isPlayingAudio && !isProcessing && (
                 <button
                   type="button"
                   className={`btn-primary ${isProcessing ? "processing" : ""}`}
