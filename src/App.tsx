@@ -42,11 +42,13 @@ function App() {
     isConnecting,
     isConnected,
     isRecording,
+    isProcessing,
     audioLevel,
     errorMessage,
     markdown,
     connect,
     disconnect,
+    submitRecording,
   } = useLiveGateway(wsUrl)
   const { statusClassName, statusText } = useConnectionStatus({
     errorMessage,
@@ -63,6 +65,13 @@ function App() {
         </header>
 
         <div className={`status ${statusClassName}`}>{statusText}</div>
+
+        {isProcessing && (
+          <div className="processing-indicator">
+            <div className="spinner" />
+            <span>Processing response...</span>
+          </div>
+        )}
 
         <div className="audio-visualizer" aria-hidden="true">
           <div
@@ -88,6 +97,16 @@ function App() {
           >
             Disconnect
           </button>
+          {isRecording && (
+            <button
+              type="button"
+              className={`btn-primary ${isProcessing ? 'processing' : ''}`}
+              onClick={submitRecording}
+              disabled={isProcessing}
+            >
+              {isProcessing ? 'Processing...' : 'Submit Recording'}
+            </button>
+          )}
         </div>
 
         {markdown && <MarkdownOutput markdown={markdown} />}

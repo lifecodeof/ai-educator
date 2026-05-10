@@ -11,11 +11,13 @@ interface UseLiveGatewayResult {
   isConnecting: boolean
   isConnected: boolean
   isRecording: boolean
+  isProcessing: boolean
   audioLevel: number
   errorMessage: string | null
   markdown: string
   connect: () => Promise<void>
   disconnect: () => void
+  submitRecording: () => void
 }
 
 export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
@@ -32,6 +34,7 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
   const [isConnecting, setIsConnecting] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
   const [audioLevel, setAudioLevel] = useState(0)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [markdown, setMarkdown] = useState<string>('')
@@ -152,43 +155,54 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
   }, [])
 
   const startRecording = useCallback(async () => {
-    const micStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setErrorMessage('Microphone access is not available. Please use HTTPS or check browser permissions.')
+      return
+    }
+
+    try {
+      const micStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          sampleRate: RECORDING_SAMPLE_RATE,
+          channelCount: 1,
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      })
+
+      const AudioContextCtor = getAudioContextCtor()
+      const recordingContext = new AudioContextCtor({
         sampleRate: RECORDING_SAMPLE_RATE,
-        channelCount: 1,
-        echoCancellation: true,
-        noiseSuppression: true,
-      },
-    })
+      })
 
-    const AudioContextCtor = getAudioContextCtor()
-    const recordingContext = new AudioContextCtor({
-      sampleRate: RECORDING_SAMPLE_RATE,
-    })
+      await recordingContext.audioWorklet.addModule('/audio-processor.js')
 
-    await recordingContext.audioWorklet.addModule('/audio-processor.js')
+      const source = recordingContext.createMediaStreamSource(micStream)
+      const analyser = recordingContext.createAnalyser()
+      analyser.fftSize = 2048
+      analyser.smoothingTimeConstant = 0.8
 
-    const source = recordingContext.createMediaStreamSource(micStream)
-    const analyser = recordingContext.createAnalyser()
-    analyser.fftSize = 2048
-    analyser.smoothingTimeConstant = 0.8
+      const workletNode = new AudioWorkletNode(recordingContext, 'microphone-stream-processor')
+      workletNode.port.onmessage = handleWorkletMessage
+      workletNode.port.start()
 
-    const workletNode = new AudioWorkletNode(recordingContext, 'microphone-stream-processor')
-    workletNode.port.onmessage = handleWorkletMessage
-    workletNode.port.start()
+      source.connect(analyser)
+      analyser.connect(workletNode)
+      workletNode.connect(recordingContext.destination)
 
-    source.connect(analyser)
-    analyser.connect(workletNode)
-    workletNode.connect(recordingContext.destination)
+      micStreamRef.current = micStream
+      recordingContextRef.current = recordingContext
+      analyserRef.current = analyser
+      workletNodeRef.current = workletNode
 
-    micStreamRef.current = micStream
-    recordingContextRef.current = recordingContext
-    analyserRef.current = analyser
-    workletNodeRef.current = workletNode
-
-    isRecordingRef.current = true
-    setIsRecording(true)
-    updateVisualizer()
+      isRecordingRef.current = true
+      setIsRecording(true)
+      updateVisualizer()
+    } catch (error) {
+      const err = error as Error
+      setErrorMessage(`Microphone error: ${err.message}`)
+      console.error('Failed to start recording:', error)
+    }
   }, [handleWorkletMessage, updateVisualizer])
 
   const cleanupConnection = useCallback(() => {
@@ -247,6 +261,9 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
         .with({ type: 'markdownChunk' }, ({ content }) => {
           setMarkdown((prev) => prev + content)
         })
+        .with({ type: 'requestComplete' }, () => {
+          setIsProcessing(false)
+        })
         .exhaustive()
     })
 
@@ -270,14 +287,27 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
     }
   }, [disconnect])
 
+  const submitRecording = useCallback(() => {
+    const ws = wsRef.current
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      return
+    }
+    setIsProcessing(true)
+    sendLiveRequest(ws, {
+      type: 'submitRequest',
+    })
+  }, [])
+
   return {
     isConnecting,
     isConnected,
     isRecording,
+    isProcessing,
     audioLevel,
     errorMessage,
     markdown,
     connect,
     disconnect,
+    submitRecording,
   }
 }

@@ -8,6 +8,9 @@ export type LiveResponse =
       type: "markdownChunk"
       content: string
     }
+  | {
+      type: "requestComplete"
+    }
 
 export type Websocket = {
   send(data: string): void

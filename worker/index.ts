@@ -66,6 +66,16 @@ app.get(
       })
     })
 
+    const cleanupComplete = events.on("requestComplete", () => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        return
+      }
+
+      sendLiveResponse(ws, {
+        type: "requestComplete",
+      })
+    })
+
     const cleanupError = events.on("error", () => {
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.close(1011, "Live session error")
@@ -79,6 +89,7 @@ app.get(
       }
       isDisposed = true
       cleanupMessage()
+      cleanupComplete()
       cleanupError()
       dispose()
     }
@@ -96,6 +107,9 @@ app.get(
                 mimeType: audioRequest.mimeType,
               },
             })
+          })
+          .with({ type: "submitRequest" }, () => {
+            session.submitRequest()
           })
           .exhaustive()
       },

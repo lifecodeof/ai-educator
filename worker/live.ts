@@ -12,9 +12,11 @@ type LiveSession = {
     audioChunk: (chunk: string, mimeType: string) => void // Encoded as base64
     error: (event: unknown) => void
     close: (event: CloseEvent) => void
+    requestComplete: () => void
   }>
   session: {
     sendRealtimeInput: (params: { audio?: { data: string; mimeType?: string } }) => void
+    submitRequest: () => void
   }
   [Symbol.dispose](): void
 }
@@ -228,7 +230,10 @@ export async function createLiveSession({
       })
 
       const res = replyResponse.candidates?.[0]?.content
-      if (!res) return
+      if (!res) {
+        events.emit("requestComplete")
+        return
+      }
 
       conversationHistory.push(res)
 
@@ -271,6 +276,7 @@ export async function createLiveSession({
             }
           }
 
+          events.emit("requestComplete")
           return
         }
       }
@@ -289,6 +295,8 @@ export async function createLiveSession({
           if (appendTool) await appendTool.call({ content: part.text })
         }
       }
+
+      events.emit("requestComplete")
     } catch (error) {
       console.error(error)
       events.emit("error", error)
@@ -306,6 +314,10 @@ export async function createLiveSession({
       inactivityTimer = setTimeout(() => {
         processQueue = processQueue.then(processBufferedAudio).catch((err) => events.emit("error", err))
       }, 700)
+    },
+    submitRequest: () => {
+      if (inactivityTimer) clearTimeout(inactivityTimer)
+      processQueue = processQueue.then(processBufferedAudio).catch((err) => events.emit("error", err))
     },
   }
 
