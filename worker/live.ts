@@ -7,6 +7,12 @@ import {
 import { createNanoEvents, type Emitter } from "nanoevents"
 import { liveConfig } from "./live-config"
 
+type GatewayConfig = {
+  gatewayId: string
+  accountId: string
+  token: string
+}
+
 type LiveSession = {
   events: Emitter<{
     audioChunk: (chunk: string, mimeType: string, transcript?: string) => void // Encoded as base64
@@ -124,16 +130,31 @@ const normalizeTtsMimeType = (mimeType?: string) => {
   return normalized
 }
 
+const createGenAIClient = (apiKey: string, cfGatewayConfig?: GatewayConfig) => {
+  if (!cfGatewayConfig) {
+    return new GoogleGenAI({ apiKey })
+  }
+
+  return new GoogleGenAI({
+    apiKey: cfGatewayConfig.token,
+    httpOptions: {
+      baseUrl: `https://gateway.ai.cloudflare.com/v1/${cfGatewayConfig.accountId}/${cfGatewayConfig.gatewayId}/google-ai-studio`,
+    },
+  })
+}
+
 const synthesizeSpeech = async ({
   apiKey,
+  cfGatewayConfig,
   text,
   voiceName = "Charon",
 }: {
   apiKey: string
+  cfGatewayConfig?: GatewayConfig
   text: string
   voiceName?: string
 }) => {
-  const ai = new GoogleGenAI({ apiKey })
+  const ai = createGenAIClient(apiKey, cfGatewayConfig)
   const response = await ai.models.generateContent({
     model: TTS_MODEL,
     contents: text,
@@ -168,11 +189,7 @@ export async function createLiveSession({
   toolSet,
 }: {
   apiKey?: string
-  cfGatewayConfig?: {
-    gatewayId: string
-    accountId: string
-    token: string
-  }
+  cfGatewayConfig?: GatewayConfig
   toolSet: {
     def: any
     call: (args: Record<string, unknown>) => Promise<Record<string, unknown>>
@@ -182,10 +199,7 @@ export async function createLiveSession({
     throw new Error("Either API key or Cloudflare Gateway credentials must be provided.")
   }
 
-  // Use Cloudflare Gateway token if available, otherwise use API key
-  const effectiveApiKey = cfGatewayConfig ? cfGatewayConfig.token : apiKey!
-
-  const ai = new GoogleGenAI({ apiKey: effectiveApiKey })
+  const ai = createGenAIClient(apiKey!, cfGatewayConfig)
   const events: LiveSession["events"] = createNanoEvents()
 
   const bufferedAudioChunks: Uint8Array[] = []
@@ -281,7 +295,7 @@ export async function createLiveSession({
           // Use finalResponse.text as reply text
           const replyText = finalResponse.text?.trim() ?? ""
           if (replyText) {
-            const tts = await synthesizeSpeech({ apiKey: effectiveApiKey, text: replyText, voiceName: "Charon" })
+            const tts = await synthesizeSpeech({ apiKey: apiKey!, cfGatewayConfig, text: replyText, voiceName: "Charon" })
             events.emit("audioChunk", uint8ArrayToBase64(tts.sound), tts.mimeType ?? DEFAULT_RESPONSE_MIME_TYPE, replyText)
           }
 
@@ -301,7 +315,7 @@ export async function createLiveSession({
       // No function calls: proceed normally
       const replyText = replyResponse.text?.trim() ?? ""
       if (replyText) {
-        const tts = await synthesizeSpeech({ apiKey: effectiveApiKey, text: replyText, voiceName: "Charon" })
+        const tts = await synthesizeSpeech({ apiKey: apiKey!, cfGatewayConfig, text: replyText, voiceName: "Charon" })
         events.emit("audioChunk", uint8ArrayToBase64(tts.sound), tts.mimeType ?? DEFAULT_RESPONSE_MIME_TYPE, replyText)
       }
 
