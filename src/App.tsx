@@ -1,4 +1,4 @@
-import { memo } from "react"
+import { memo, useEffect } from "react"
 import type React from "react"
 import ReactMarkdown from "react-markdown"
 import { MermaidChart } from "./components/MermaidChart"
@@ -70,6 +70,44 @@ function App() {
     isConnected,
     isConnecting,
   })
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      if (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable
+      ) {
+        return
+      }
+
+      if (e.key === "q" || e.key === "Q") {
+        if (!isConnected && !isConnecting) {
+          void connect()
+        }
+      } else if (e.key === "w" || e.key === "W") {
+        if (isPlayingAudio) {
+          interruptSpeech()
+        } else if (isProcessing) {
+          cancelProcessing()
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+    }
+  }, [
+    isConnected,
+    isConnecting,
+    isPlayingAudio,
+    isProcessing,
+    connect,
+    interruptSpeech,
+    cancelProcessing,
+  ])
 
   return (
     <main className="app">
