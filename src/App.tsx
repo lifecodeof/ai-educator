@@ -2,7 +2,6 @@ import { memo } from "react"
 import type React from "react"
 import ReactMarkdown from "react-markdown"
 import { MermaidChart } from "./components/MermaidChart"
-import { VISUALIZER_ACTIVE_THRESHOLD } from "./audio/constants"
 import { useConnectionStatus } from "./hooks/useConnectionStatus"
 import { useLiveGateway } from "./hooks/useLiveGateway"
 import { useWebSocketUrl } from "./hooks/useWebSocketUrl"
@@ -41,16 +40,12 @@ function App() {
   const {
     isConnecting,
     isConnected,
-    isRecording,
+    isListening,
     isPlayingAudio,
     isProcessing,
-    voiceInterruptEnabled,
-    voiceInterruptThreshold,
-    audioLevel,
-    silenceThreshold,
-    setSilenceThreshold,
-    setVoiceInterruptEnabled,
-    setVoiceInterruptThreshold,
+    draftTranscript,
+    triggerWord,
+    setTriggerWord,
     errorMessage,
     transcript,
     document,
@@ -58,13 +53,12 @@ function App() {
     setCurrentView,
     connect,
     disconnect,
-    submitRecording,
     interruptSpeech,
     cancelProcessing,
   } = useLiveGateway(wsUrl)
   const { statusClassName, statusText } = useConnectionStatus({
     errorMessage,
-    isRecording,
+    isListening,
     isPlayingAudio,
     isProcessing,
     isConnected,
@@ -89,75 +83,28 @@ function App() {
               </div>
             )}
 
-            <div className="audio-visualizer" aria-hidden="true">
-              <div
-                className={`visualizer-bar ${audioLevel >= VISUALIZER_ACTIVE_THRESHOLD ? "active" : ""}`}
-                style={{ width: `${audioLevel}%` }}
-              />
-              {isRecording && (
-                <div
-                  className="threshold-line"
-                  style={{ left: `${silenceThreshold}%` }}
-                  title={`Silence threshold: ${silenceThreshold}%`}
-                />
-              )}
-              {(isRecording || isPlayingAudio) && voiceInterruptEnabled && (
-                <div
-                  className="threshold-line voice-threshold-line"
-                  style={{ left: `${voiceInterruptThreshold}%` }}
-                  title={`Voice interrupt threshold: ${voiceInterruptThreshold}%`}
-                />
-              )}
-            </div>
-
-            {isRecording && !isProcessing && !isPlayingAudio && (
-              <div className="threshold-control">
-                <label htmlFor="threshold-slider">
-                  Auto-submit silence threshold:{" "}
-                  <strong>{silenceThreshold}%</strong>
-                </label>
-                <input
-                  id="threshold-slider"
-                  type="range"
-                  min="1"
-                  max="90"
-                  value={silenceThreshold}
-                  onChange={(e) => setSilenceThreshold(Number(e.target.value))}
-                  className="threshold-slider"
-                />
-                <span className="threshold-hint">
-                  Auto-submits after 1s of silence below this level
-                </span>
-              </div>
-            )}
-
-            <div className="threshold-control voice-control">
-              <label htmlFor="voice-interrupt-enabled">
-                <input
-                  id="voice-interrupt-enabled"
-                  type="checkbox"
-                  checked={voiceInterruptEnabled}
-                  onChange={(e) => setVoiceInterruptEnabled(e.target.checked)}
-                />{" "}
-                Voice interruption
-              </label>
+            <div className="speech-control">
+              <label htmlFor="trigger-word">Trigger word</label>
               <input
-                id="voice-interrupt-threshold"
-                type="range"
-                min="1"
-                max="90"
-                value={voiceInterruptThreshold}
-                onChange={(e) =>
-                  setVoiceInterruptThreshold(Number(e.target.value))
-                }
-                className="threshold-slider"
-                disabled={!voiceInterruptEnabled}
+                id="trigger-word"
+                type="text"
+                value={triggerWord}
+                onChange={(e) => setTriggerWord(e.target.value)}
+                className="text-input"
+                placeholder="soru"
+                spellCheck={false}
               />
-              <span className="threshold-hint">
-                Interrupts the model immediately when your voice exceeds this
-                level
+              <span className="speech-control-hint">
+                SpeechRecognition submits final text once it hears this word.
               </span>
             </div>
+
+            {isListening && draftTranscript && (
+              <div className="draft-transcript">
+                <span className="draft-transcript-label">Live transcript</span>
+                <div className="draft-transcript-text">{draftTranscript}</div>
+              </div>
+            )}
 
             <div className="controls">
               <button
@@ -176,16 +123,6 @@ function App() {
               >
                 Disconnect
               </button>
-              {isRecording && !isPlayingAudio && !isProcessing && (
-                <button
-                  type="button"
-                  className={`btn-primary ${isProcessing ? "processing" : ""}`}
-                  onClick={submitRecording}
-                  disabled={isProcessing}
-                >
-                  {isProcessing ? "Processing..." : "Submit Recording"}
-                </button>
-              )}
               {isPlayingAudio && (
                 <button
                   type="button"
@@ -224,8 +161,7 @@ function App() {
                     onClick={() => setCurrentView("transcript")}
                   >
                     Transcript{" "}
-                    {transcript &&
-                      `(${transcript.split("\n\n").length} responses)`}
+                    {transcript && `(${transcript.split("\n\n").length} entries)`}
                   </button>
                 </div>
 

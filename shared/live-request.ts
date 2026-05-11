@@ -1,11 +1,8 @@
 export type LiveRequest =
   | {
-      type: "audioInputChunk"
-      audioBase64: string
-      mimeType: "audio/pcm;rate=16000"
-    }
-  | {
-      type: "submitRequest"
+      type: "textInputChunk"
+      text: string
+      isFinished: boolean
     }
 
 export type Websocket = {

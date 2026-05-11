@@ -105,7 +105,11 @@ app.get(
       if (ws && ws.readyState === WebSocket.OPEN) {
         const errorMessage =
           error instanceof Error ? error.message : String(error)
-        const statusCode = (error as any)?.status || (error as any)?.statusCode
+        const statusCandidate = error as {
+          status?: number
+          statusCode?: number
+        }
+        const statusCode = statusCandidate.status ?? statusCandidate.statusCode
         sendLiveResponse(ws, {
           type: "error",
           message: errorMessage,
@@ -133,16 +137,11 @@ app.get(
         const request = JSON.parse(event.data as string) as LiveRequest
 
         match(request)
-          .with({ type: "audioInputChunk" }, (audioRequest) => {
-            session.sendRealtimeInput({
-              audio: {
-                data: audioRequest.audioBase64,
-                mimeType: audioRequest.mimeType,
-              },
+          .with({ type: "textInputChunk" }, (textRequest) => {
+            session.sendTextInput({
+              text: textRequest.text,
+              isFinished: textRequest.isFinished,
             })
-          })
-          .with({ type: "submitRequest" }, () => {
-            session.submitRequest()
           })
           .exhaustive()
       },

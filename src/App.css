@@ -89,7 +89,7 @@
   color: var(--color-accent);
 }
 
-.status.recording {
+.status.listening {
   border-color: var(--color-recording);
   color: var(--color-recording);
 }
@@ -99,43 +99,7 @@
   color: var(--color-error);
 }
 
-.audio-visualizer {
-  margin-top: 20px;
-  height: 12px;
-  border: 2px solid var(--color-border);
-  background: var(--color-background);
-  overflow: visible;
-  position: relative;
-}
-
-.visualizer-bar {
-  height: 100%;
-  width: 0;
-  transition:
-    width 0.05s ease-out,
-    background-color 0.2s ease;
-  background: var(--color-secondary);
-}
-
-.visualizer-bar.active {
-  background: var(--color-accent);
-}
-
-.threshold-line {
-  position: absolute;
-  top: 0;
-  width: 2px;
-  height: 100%;
-  background: var(--color-error);
-  opacity: 0.6;
-}
-
-.voice-threshold-line {
-  background: var(--color-accent);
-  opacity: 0.8;
-}
-
-.threshold-control {
+.speech-control {
   margin-top: 12px;
   padding: 12px;
   background: color-mix(in srgb, var(--color-primary) 5%, transparent);
@@ -143,7 +107,7 @@
   border-radius: 4px;
 }
 
-.threshold-control label {
+.speech-control label {
   display: block;
   font-size: 0.8rem;
   font-weight: 600;
@@ -153,32 +117,51 @@
   color: var(--color-text-primary);
 }
 
-.voice-control label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  text-transform: none;
-  font-size: 0.85rem;
-}
-
-.voice-control input[type="checkbox"] {
-  width: auto;
-  accent-color: var(--color-primary);
-}
-
-.threshold-slider {
+.text-input {
   width: 100%;
-  height: 6px;
-  margin-bottom: 8px;
-  cursor: pointer;
-  accent-color: var(--color-primary);
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: 0.9rem;
 }
 
-.threshold-hint {
+.text-input:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.speech-control-hint {
   display: block;
+  margin-top: 8px;
   font-size: 0.75rem;
   color: var(--color-text-secondary);
   font-style: italic;
+}
+
+.draft-transcript {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-secondary) 6%, transparent);
+}
+
+.draft-transcript-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-secondary);
+}
+
+.draft-transcript-text {
+  color: var(--color-text-primary);
+  font-size: 0.9rem;
+  line-height: 1.6;
 }
 
 .processing-indicator {

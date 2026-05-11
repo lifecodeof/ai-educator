@@ -2,24 +2,19 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { match } from "ts-pattern"
 import { sendMessage as sendLiveRequest } from "../../shared/live-request"
 import { handleResponse as handleLiveResponse } from "../../shared/live-response"
-import { decodeBase64, encodeBase64 } from "../audio/base64"
+import { decodeBase64 } from "../audio/base64"
 import { getAudioContextCtor } from "../audio/audio-context"
-import { PLAYBACK_SAMPLE_RATE, RECORDING_SAMPLE_RATE } from "../audio/constants"
-import { convertFloat32ToInt16 } from "../audio/pcm"
+import { PLAYBACK_SAMPLE_RATE } from "../audio/constants"
 
 interface UseLiveGatewayResult {
   isConnecting: boolean
   isConnected: boolean
-  isRecording: boolean
+  isListening: boolean
   isPlayingAudio: boolean
   isProcessing: boolean
-  voiceInterruptEnabled: boolean
-  voiceInterruptThreshold: number
-  audioLevel: number
-  silenceThreshold: number
-  setSilenceThreshold: (threshold: number) => void
-  setVoiceInterruptEnabled: (enabled: boolean) => void
-  setVoiceInterruptThreshold: (threshold: number) => void
+  draftTranscript: string
+  triggerWord: string
+  setTriggerWord: (word: string) => void
   errorMessage: string | null
   transcript: string
   document: string
@@ -27,46 +22,45 @@ interface UseLiveGatewayResult {
   setCurrentView: (view: "transcript" | "document") => void
   connect: () => Promise<void>
   disconnect: () => void
-  submitRecording: () => void
   interruptSpeech: () => void
   cancelProcessing: () => void
 }
 
+const getSpeechRecognitionCtor = () =>
+  window.SpeechRecognition ?? window.webkitSpeechRecognition
+
+const escapeRegExp = (value: string) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+
 export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
   const wsRef = useRef<WebSocket | null>(null)
-  const micStreamRef = useRef<MediaStream | null>(null)
-  const recordingContextRef = useRef<AudioContext | null>(null)
-  const workletNodeRef = useRef<AudioWorkletNode | null>(null)
-  const analyserRef = useRef<AnalyserNode | null>(null)
-  const playbackContextRef = useRef<AudioContext | null>(null)
-  const nextPlaybackStartRef = useRef(0)
-  const animationFrameRef = useRef<number | null>(null)
-  const isRecordingRef = useRef(false)
+  const recognitionRef = useRef<SpeechRecognition | null>(null)
+  const keepListeningRef = useRef(false)
+  const isListeningRef = useRef(false)
   const isPlayingAudioRef = useRef(false)
   const isProcessingRef = useRef(false)
-  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const lastAudioLevelRef = useRef(0)
-  const silenceThresholdRef = useRef(15)
-  const voiceInterruptEnabledRef = useRef(true)
-  const voiceInterruptThresholdRef = useRef(35)
-  const interruptSpeechRef = useRef<(() => void) | null>(null)
+  const lastSubmittedTranscriptRef = useRef("")
+  const playbackContextRef = useRef<AudioContext | null>(null)
+  const nextPlaybackStartRef = useRef(0)
   const playbackSourcesRef = useRef<AudioBufferSourceNode[]>([])
 
   const [isConnecting, setIsConnecting] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
-  const [isRecording, setIsRecording] = useState(false)
+  const [isListening, setIsListening] = useState(false)
   const [isPlayingAudio, setIsPlayingAudio] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
-  const [voiceInterruptEnabled, setVoiceInterruptEnabled] = useState(true)
-  const [voiceInterruptThreshold, setVoiceInterruptThreshold] = useState(35)
-  const [audioLevel, setAudioLevel] = useState(0)
-  const [silenceThreshold, setSilenceThreshold] = useState(15)
+  const [draftTranscript, setDraftTranscript] = useState("")
+  const [triggerWord, setTriggerWord] = useState("soru")
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [transcript, setTranscript] = useState<string>("")
   const [document, setDocument] = useState<string>("")
   const [currentView, setCurrentView] = useState<"transcript" | "document">(
     "document",
   )
+
+  useEffect(() => {
+    isListeningRef.current = isListening
+  }, [isListening])
 
   useEffect(() => {
     isPlayingAudioRef.current = isPlayingAudio
@@ -76,18 +70,6 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
     isProcessingRef.current = isProcessing
   }, [isProcessing])
 
-  useEffect(() => {
-    silenceThresholdRef.current = silenceThreshold
-  }, [silenceThreshold])
-
-  useEffect(() => {
-    voiceInterruptEnabledRef.current = voiceInterruptEnabled
-  }, [voiceInterruptEnabled])
-
-  useEffect(() => {
-    voiceInterruptThresholdRef.current = voiceInterruptThreshold
-  }, [voiceInterruptThreshold])
-
   const ensurePlaybackContext = useCallback(() => {
     if (!playbackContextRef.current) {
       const AudioContextCtor = getAudioContextCtor()
@@ -96,6 +78,10 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
       })
     }
     return playbackContextRef.current
+  }, [])
+
+  const appendTranscriptEntry = useCallback((entry: string) => {
+    setTranscript((prev) => (prev ? `${prev}\n\n${entry}` : entry))
   }, [])
 
   const playAudio = useCallback(
@@ -132,7 +118,7 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
 
       source.addEventListener("ended", () => {
         playbackSourcesRef.current = playbackSourcesRef.current.filter(
-          (s) => s !== source,
+          (candidate) => candidate !== source,
         )
         if (playbackSourcesRef.current.length === 0) {
           isPlayingAudioRef.current = false
@@ -146,217 +132,198 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
     [ensurePlaybackContext],
   )
 
-  const updateVisualizer = useCallback(() => {
-    const tick = () => {
-      if (
-        !analyserRef.current ||
-        (!isRecordingRef.current && !isPlayingAudioRef.current)
-      ) {
-        setAudioLevel(0)
-        animationFrameRef.current = null
-        return
-      }
-
-      const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount)
-      analyserRef.current.getByteTimeDomainData(dataArray)
-
-      let sum = 0
-      for (let i = 0; i < dataArray.length; i += 1) {
-        const normalized = (dataArray[i] - 128) / 128
-        sum += normalized * normalized
-      }
-
-      const rms = Math.sqrt(sum / dataArray.length)
-      const db = 20 * Math.log10(rms + 0.0001)
-      const level = Math.max(0, Math.min(100, ((db + 60) / 60) * 100))
-      setAudioLevel(level)
-      lastAudioLevelRef.current = level
-
-      if (isPlayingAudioRef.current) {
-        if (silenceTimerRef.current) {
-          clearTimeout(silenceTimerRef.current)
-          silenceTimerRef.current = null
-        }
-        if (
-          voiceInterruptEnabledRef.current &&
-          level >= voiceInterruptThresholdRef.current
-        ) {
-          interruptSpeechRef.current?.()
-        }
-      } else if (!isProcessingRef.current) {
-        // Auto-submit if below threshold for 1 second while the user is speaking.
-        if (level < silenceThresholdRef.current) {
-          if (!silenceTimerRef.current) {
-            silenceTimerRef.current = setTimeout(() => {
-              const ws = wsRef.current
-              if (
-                ws &&
-                ws.readyState === WebSocket.OPEN &&
-                isRecordingRef.current &&
-                !isProcessingRef.current &&
-                !isPlayingAudioRef.current
-              ) {
-                setIsProcessing(true)
-                sendLiveRequest(ws, { type: "submitRequest" })
-              }
-              silenceTimerRef.current = null
-            }, 1000)
-          }
-        } else {
-          if (silenceTimerRef.current) {
-            clearTimeout(silenceTimerRef.current)
-            silenceTimerRef.current = null
-          }
-        }
-      } else if (silenceTimerRef.current) {
-        clearTimeout(silenceTimerRef.current)
-        silenceTimerRef.current = null
-      }
-
-      animationFrameRef.current = requestAnimationFrame(tick)
-    }
-
-    tick()
-  }, [])
-
-  const handleWorkletMessage = useCallback(
-    (event: MessageEvent<Float32Array>) => {
+  const submitRecognizedText = useCallback(
+    (text: string) => {
+      const normalizedText = text.trim()
       const ws = wsRef.current
-      // Don't record while processing or not recording
-      if (
-        !isRecordingRef.current ||
-        !ws ||
-        ws.readyState !== WebSocket.OPEN ||
-        isProcessingRef.current ||
-        isPlayingAudioRef.current
-      ) {
+
+      if (!normalizedText) {
         return
       }
 
-      const pcmInt16 = convertFloat32ToInt16(event.data)
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        setErrorMessage("WebSocket connection is not open.")
+        return
+      }
+
+      isProcessingRef.current = true
+      setIsProcessing(true)
+      lastSubmittedTranscriptRef.current = normalizedText
+      appendTranscriptEntry(`You: ${normalizedText}`)
+      setDraftTranscript("")
+
       sendLiveRequest(ws, {
-        type: "audioInputChunk",
-        audioBase64: encodeBase64(new Uint8Array(pcmInt16.buffer)),
-        mimeType: "audio/pcm;rate=16000",
+        type: "textInputChunk",
+        text: normalizedText,
+        isFinished: true,
       })
     },
-    [],
+    [appendTranscriptEntry],
   )
 
-  const stopRecording = useCallback(async () => {
-    isRecordingRef.current = false
-    isPlayingAudioRef.current = false
-    isProcessingRef.current = false
-    setIsRecording(false)
-    setIsPlayingAudio(false)
-    setIsProcessing(false)
+  const wireRecognitionHandlers = useCallback(
+    (recognition: SpeechRecognition, currentTriggerWord: string) => {
+      recognition.onstart = () => {
+        isListeningRef.current = true
+        setIsListening(true)
+        setErrorMessage(null)
+      }
 
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current)
-      silenceTimerRef.current = null
+      recognition.onresult = (event) => {
+        const changedResults = Array.from(event.results).slice(
+          event.resultIndex,
+        )
+        const currentTranscript = changedResults
+          .map((result) => result[0]?.transcript?.trim() ?? "")
+          .filter(Boolean)
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trim()
+
+        setDraftTranscript(currentTranscript)
+
+        const hasFinalResult = changedResults.some((result) => result.isFinal)
+        if (!hasFinalResult) {
+          return
+        }
+
+        const normalizedTrigger = currentTriggerWord.trim().toLowerCase()
+        if (normalizedTrigger) {
+          const triggerPattern = new RegExp(
+            `\\b${escapeRegExp(normalizedTrigger)}\\b`,
+            "i",
+          )
+          if (!triggerPattern.test(currentTranscript)) {
+            return
+          }
+        }
+
+        if (
+          !currentTranscript ||
+          currentTranscript === lastSubmittedTranscriptRef.current
+        ) {
+          return
+        }
+
+        submitRecognizedText(currentTranscript)
+      }
+
+      recognition.onerror = (event) => {
+        const message = event.message || event.error
+        setErrorMessage(`Speech recognition error: ${message}`)
+        setIsListening(false)
+        isListeningRef.current = false
+        if (event.error !== "no-speech" && event.error !== "aborted") {
+          keepListeningRef.current = false
+        }
+      }
+
+      recognition.onend = () => {
+        setIsListening(false)
+        isListeningRef.current = false
+
+        if (
+          keepListeningRef.current &&
+          wsRef.current?.readyState === WebSocket.OPEN
+        ) {
+          window.setTimeout(() => {
+            try {
+              recognition.start()
+            } catch {
+              // Ignore restart races when the browser has already torn down the session.
+            }
+          }, 200)
+        }
+      }
+    },
+    [submitRecognizedText],
+  )
+
+  useEffect(() => {
+    const recognition = recognitionRef.current
+    if (recognition) {
+      wireRecognitionHandlers(recognition, triggerWord)
+    }
+  }, [triggerWord, wireRecognitionHandlers])
+
+  const startRecognition = useCallback(() => {
+    const RecognitionCtor = getSpeechRecognitionCtor()
+    if (!RecognitionCtor) {
+      setErrorMessage("SpeechRecognition is not supported in this browser.")
+      return false
     }
 
-    if (animationFrameRef.current !== null) {
-      cancelAnimationFrame(animationFrameRef.current)
-      animationFrameRef.current = null
-    }
+    const recognition = new RecognitionCtor()
+    recognition.continuous = true
+    recognition.interimResults = true
+    recognition.maxAlternatives = 1
+    recognition.lang = "tr-TR"
 
-    if (workletNodeRef.current) {
-      workletNodeRef.current.port.onmessage = null
-      workletNodeRef.current.disconnect()
-      workletNodeRef.current = null
-    }
-
-    if (analyserRef.current) {
-      analyserRef.current.disconnect()
-      analyserRef.current = null
-    }
-
-    if (micStreamRef.current) {
-      micStreamRef.current.getTracks().forEach((track) => track.stop())
-      micStreamRef.current = null
-    }
-
-    if (recordingContextRef.current) {
-      await recordingContextRef.current.close()
-      recordingContextRef.current = null
-    }
-
-    setAudioLevel(0)
-    setIsProcessing(false)
-    isProcessingRef.current = false
-  }, [])
-
-  const startRecording = useCallback(async () => {
-    // Don't start recording while processing
-    if (isRecordingRef.current || isProcessingRef.current) {
-      return
-    }
-
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setErrorMessage(
-        "Microphone access is not available. Please use HTTPS or check browser permissions.",
-      )
-      return
-    }
+    recognitionRef.current = recognition
+    keepListeningRef.current = true
+    wireRecognitionHandlers(recognition, triggerWord)
 
     try {
-      const micStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          sampleRate: RECORDING_SAMPLE_RATE,
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-        },
-      })
-
-      const AudioContextCtor = getAudioContextCtor()
-      const recordingContext = new AudioContextCtor({
-        sampleRate: RECORDING_SAMPLE_RATE,
-      })
-
-      await recordingContext.audioWorklet.addModule("/audio-processor.js")
-
-      const source = recordingContext.createMediaStreamSource(micStream)
-      const analyser = recordingContext.createAnalyser()
-      analyser.fftSize = 2048
-      analyser.smoothingTimeConstant = 0.8
-
-      const workletNode = new AudioWorkletNode(
-        recordingContext,
-        "microphone-stream-processor",
-      )
-      workletNode.port.onmessage = handleWorkletMessage
-      workletNode.port.start()
-
-      source.connect(analyser)
-      analyser.connect(workletNode)
-      workletNode.connect(recordingContext.destination)
-
-      micStreamRef.current = micStream
-      recordingContextRef.current = recordingContext
-      analyserRef.current = analyser
-      workletNodeRef.current = workletNode
-
-      isRecordingRef.current = true
-      setIsRecording(true)
-      updateVisualizer()
+      recognition.start()
+      return true
     } catch (error) {
-      const err = error as Error
-      setErrorMessage(`Microphone error: ${err.message}`)
-      console.error("Failed to start recording:", error)
+      recognitionRef.current = null
+      keepListeningRef.current = false
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to start speech recognition."
+      setErrorMessage(message)
+      return false
     }
-  }, [handleWorkletMessage, updateVisualizer, isProcessing])
+  }, [triggerWord, wireRecognitionHandlers])
+
+  const stopRecognition = useCallback(() => {
+    keepListeningRef.current = false
+    const recognition = recognitionRef.current
+    recognitionRef.current = null
+
+    if (!recognition) {
+      setIsListening(false)
+      isListeningRef.current = false
+      setDraftTranscript("")
+      return
+    }
+
+    recognition.onstart = null
+    recognition.onresult = null
+    recognition.onerror = null
+    recognition.onend = null
+    recognition.abort()
+
+    setIsListening(false)
+    isListeningRef.current = false
+    setDraftTranscript("")
+  }, [])
 
   const cleanupConnection = useCallback(() => {
     wsRef.current = null
     setIsConnecting(false)
     setIsConnected(false)
-    void stopRecording()
-  }, [stopRecording])
+    stopRecognition()
+  }, [stopRecognition])
+
+  const interruptSpeech = useCallback(() => {
+    if (playbackSourcesRef.current.length > 0) {
+      playbackSourcesRef.current.forEach((source) => {
+        source.stop()
+      })
+      playbackSourcesRef.current = []
+    }
+    isPlayingAudioRef.current = false
+    setIsPlayingAudio(false)
+    nextPlaybackStartRef.current = 0
+  }, [])
 
   const disconnect = useCallback(() => {
+    keepListeningRef.current = false
     const ws = wsRef.current
+
     if (!ws) {
       cleanupConnection()
       return
@@ -389,27 +356,12 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
     const ws = new WebSocket(wsUrl)
     wsRef.current = ws
 
-    ws.addEventListener("open", () => {
-      setIsConnecting(false)
-      setIsConnected(true)
-      void startRecording().catch((error: unknown) => {
-        const message =
-          error instanceof Error ? error.message : "Failed to start recording."
-        setErrorMessage(message)
-        ws.close()
-      })
-    })
-
-  const cleanupResponseHandler = handleLiveResponse(ws, (response) => {
+    const cleanupResponseHandler = handleLiveResponse(ws, (response) => {
       void match(response)
         .with({ type: "audioOutputChunk" }, async (audioResponse) => {
           await playAudio(decodeBase64(audioResponse.audioBase64))
           if (audioResponse.transcript) {
-            setTranscript((prev) =>
-              prev
-                ? prev + "\n\n" + audioResponse.transcript
-                : audioResponse.transcript!,
-            )
+            appendTranscriptEntry(`Assistant: ${audioResponse.transcript}`)
           }
         })
         .with({ type: "markdownChunk" }, ({ content }) => {
@@ -418,16 +370,26 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
         .with({ type: "requestComplete" }, () => {
           isProcessingRef.current = false
           setIsProcessing(false)
+          lastSubmittedTranscriptRef.current = ""
         })
         .with({ type: "error" }, ({ message, statusCode }) => {
           isProcessingRef.current = false
           setIsProcessing(false)
+          lastSubmittedTranscriptRef.current = ""
           const errorDisplay = statusCode
             ? `[${statusCode}] ${message}`
             : message
           setErrorMessage(errorDisplay)
         })
         .exhaustive()
+    })
+
+    ws.addEventListener("open", () => {
+      setIsConnecting(false)
+      setIsConnected(true)
+      if (!startRecognition()) {
+        ws.close()
+      }
     })
 
     ws.addEventListener("error", () => {
@@ -439,11 +401,12 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
       cleanupConnection()
     })
   }, [
+    appendTranscriptEntry,
     cleanupConnection,
     ensurePlaybackContext,
     isConnecting,
     playAudio,
-    startRecording,
+    startRecognition,
     wsUrl,
   ])
 
@@ -457,40 +420,6 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
     }
   }, [disconnect])
 
-  const submitRecording = useCallback(() => {
-    const ws = wsRef.current
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      return
-    }
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current)
-      silenceTimerRef.current = null
-    }
-    isProcessingRef.current = true
-    setIsProcessing(true)
-    sendLiveRequest(ws, {
-      type: "submitRequest",
-    })
-  }, [])
-
-  const interruptSpeech = useCallback(() => {
-    if (silenceTimerRef.current) {
-      clearTimeout(silenceTimerRef.current)
-      silenceTimerRef.current = null
-    }
-    playbackSourcesRef.current.forEach((source) => {
-      source.stop()
-    })
-    playbackSourcesRef.current = []
-    isPlayingAudioRef.current = false
-    setIsPlayingAudio(false)
-    nextPlaybackStartRef.current = 0
-  }, [])
-
-  useEffect(() => {
-    interruptSpeechRef.current = interruptSpeech
-  }, [interruptSpeech])
-
   const cancelProcessing = useCallback(() => {
     isProcessingRef.current = false
     setIsProcessing(false)
@@ -499,16 +428,12 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
   return {
     isConnecting,
     isConnected,
-    isRecording,
+    isListening,
     isPlayingAudio,
     isProcessing,
-    voiceInterruptEnabled,
-    voiceInterruptThreshold,
-    audioLevel,
-    silenceThreshold,
-    setSilenceThreshold,
-    setVoiceInterruptEnabled,
-    setVoiceInterruptThreshold,
+    draftTranscript,
+    triggerWord,
+    setTriggerWord,
     errorMessage,
     transcript,
     document,
@@ -516,7 +441,6 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
     setCurrentView,
     connect,
     disconnect,
-    submitRecording,
     interruptSpeech,
     cancelProcessing,
   }
