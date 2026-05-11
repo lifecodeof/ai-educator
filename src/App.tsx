@@ -58,20 +58,28 @@ function App() {
     cancelProcessing,
   } = useLiveGateway(wsUrl)
   useEffect(() => {
-    try {
-      const audio = new Audio(greetingUrl)
-      // Attempt autoplay; ignore failures (browser may block autoplay)
+    const audio = new Audio(greetingUrl)
+    let played = false
+    const playOnce = () => {
+      if (played) return
+      played = true
       void audio.play().catch(() => {})
-      return () => {
-        try {
-          audio.pause()
-          audio.src = ""
-        } catch {
-          // ignore cleanup errors
-        }
+      window.removeEventListener("click", playOnce)
+      window.removeEventListener("keydown", playOnce)
+    }
+    // Play greeting on first user interaction (click or keydown)
+    window.addEventListener("click", playOnce, { once: true })
+    window.addEventListener("keydown", playOnce, { once: true })
+
+    return () => {
+      window.removeEventListener("click", playOnce)
+      window.removeEventListener("keydown", playOnce)
+      try {
+        audio.pause()
+        audio.src = ""
+      } catch {
+        // ignore cleanup errors
       }
-    } catch (err) {
-      // ignore
     }
   }, [])
   const { statusClassName, statusText } = useConnectionStatus({
