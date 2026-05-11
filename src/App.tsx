@@ -59,21 +59,41 @@ function App() {
   } = useLiveGateway(wsUrl)
   useEffect(() => {
     const audio = new Audio(greetingUrl)
+<<<<<<< HEAD
     let played = false
+
     const playOnce = () => {
       if (played) return
       played = true
       void audio.play().catch(() => {})
       window.removeEventListener("click", playOnce)
+      window.removeEventListener("touchstart", playOnce)
       window.removeEventListener("keydown", playOnce)
     }
-    // Play greeting on first user interaction (click or keydown)
+
+    // Play greeting on first user interaction (click/touch/keydown)
     window.addEventListener("click", playOnce, { once: true })
+    window.addEventListener("touchstart", playOnce, { once: true })
     window.addEventListener("keydown", playOnce, { once: true })
 
     return () => {
       window.removeEventListener("click", playOnce)
+      window.removeEventListener("touchstart", playOnce)
       window.removeEventListener("keydown", playOnce)
+=======
+
+    const playOnFirstInteraction = () => {
+      void audio.play().catch(() => {})
+    }
+
+    // Play greeting on first user interaction (click/touch)
+    window.addEventListener("click", playOnFirstInteraction, { once: true })
+    window.addEventListener("touchstart", playOnFirstInteraction, { once: true })
+
+    return () => {
+      window.removeEventListener("click", playOnFirstInteraction)
+      window.removeEventListener("touchstart", playOnFirstInteraction)
+>>>>>>> f69735b (Play greeting on first user click/touch)
       try {
         audio.pause()
         audio.src = ""
