@@ -1,18 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import "./App.css"
 
 type ControlAction = "start" | "stop"
 
-const getApiBaseUrl = () => window.location.origin
-
 export default function ControlPage() {
-  const apiBaseUrl = useMemo(getApiBaseUrl, [])
+  const apiBaseUrl = window.location.origin
   const [isRunning, setIsRunning] = useState<boolean | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const fetchStatus = useCallback(async () => {
-    setErrorMessage(null)
     const response = await fetch(`${apiBaseUrl}/api/control/status`)
     if (!response.ok) {
       throw new Error("Unable to load control state.")
@@ -23,12 +20,31 @@ export default function ControlPage() {
   }, [apiBaseUrl])
 
   useEffect(() => {
-    void fetchStatus().catch((error: unknown) => {
-      const message =
-        error instanceof Error ? error.message : "Unable to load control state."
-      setErrorMessage(message)
-    })
-  }, [fetchStatus])
+    let isCancelled = false
+    void fetch(`${apiBaseUrl}/api/control/status`)
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error("Unable to load control state.")
+        }
+        const payload = (await response.json()) as { isRunning: boolean }
+        if (!isCancelled) {
+          setIsRunning(payload.isRunning)
+          setErrorMessage(null)
+        }
+      })
+      .catch((error: unknown) => {
+        if (isCancelled) {
+          return
+        }
+        const message =
+          error instanceof Error ? error.message : "Unable to load control state."
+        setErrorMessage(message)
+      })
+
+    return () => {
+      isCancelled = true
+    }
+  }, [apiBaseUrl])
 
   const updateControl = useCallback(
     async (action: ControlAction) => {
