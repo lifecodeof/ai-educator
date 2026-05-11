@@ -1,4 +1,4 @@
-import { memo } from "react"
+import { memo, useEffect } from "react"
 import type React from "react"
 import ReactMarkdown from "react-markdown"
 import { MermaidChart } from "./components/MermaidChart"
@@ -6,6 +6,7 @@ import { useConnectionStatus } from "./hooks/useConnectionStatus"
 import { useLiveGateway } from "./hooks/useLiveGateway"
 import { useWebSocketUrl } from "./hooks/useWebSocketUrl"
 import "./App.css"
+import greetingUrl from "../greeting.mp3"
 
 const markdownComponents = {
   code({
@@ -56,6 +57,23 @@ function App() {
     interruptSpeech,
     cancelProcessing,
   } = useLiveGateway(wsUrl)
+  useEffect(() => {
+    try {
+      const audio = new Audio(greetingUrl)
+      // Attempt autoplay; ignore failures (browser may block autoplay)
+      void audio.play().catch(() => {})
+      return () => {
+        try {
+          audio.pause()
+          audio.src = ""
+        } catch {
+          // ignore cleanup errors
+        }
+      }
+    } catch (err) {
+      // ignore
+    }
+  }, [])
   const { statusClassName, statusText } = useConnectionStatus({
     errorMessage,
     isListening,
