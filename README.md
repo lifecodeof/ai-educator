@@ -33,3 +33,9 @@
 - `pnpm build` - Type-check and build client + worker
 - `pnpm lint` - Run ESLint
 - `pnpm deploy` - Build and deploy via Wrangler
+
+## Durable object start/stop control
+
+- Open `/control` to view and update the live API state.
+- **Start** enables `/api/live`.
+- **Stop** disables `/api/live` and returns `503` until started again.

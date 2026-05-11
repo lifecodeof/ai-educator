@@ -5,15 +5,68 @@ import { match } from "ts-pattern"
 import { type LiveRequest } from "../shared/live-request"
 import { sendMessage as sendLiveResponse } from "../shared/live-response"
 import { createLiveSession } from "./live"
+import { StartStopControlDurableObject } from "./start-stop-control"
 
 type Bindings = {
   GEMINI_API_KEY?: string
   CF_AIG_GATEWAY_ID?: string
   CF_AIG_ACCOUNT_ID?: string
   CF_AIG_TOKEN?: string
+  CONTROL_STATE: DurableObjectNamespace
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
+
+const getControlStub = (env: Bindings) => {
+  const id = env.CONTROL_STATE.idFromName("global")
+  return env.CONTROL_STATE.get(id)
+}
+
+const getRunningState = async (env: Bindings) => {
+  const response = await getControlStub(env).fetch("https://control/status")
+  if (!response.ok) {
+    throw new Error("Failed to read control status")
+  }
+
+  const payload = (await response.json()) as { isRunning: boolean }
+  return payload.isRunning
+}
+
+app.use("/api/live", async (c, next) => {
+  const isRunning = await getRunningState(c.env)
+  if (!isRunning) {
+    return c.json(
+      {
+        message:
+          "Live API is stopped. Open /control to start it before connecting.",
+      },
+      503,
+    )
+  }
+
+  await next()
+})
+
+app.get("/api/control/status", async (c) => {
+  const isRunning = await getRunningState(c.env)
+  return c.json({ isRunning })
+})
+
+app.post("/api/control/start", async (c) => {
+  const response = await getControlStub(c.env).fetch("https://control/start", {
+    method: "POST",
+  })
+  const payload = (await response.json()) as { isRunning: boolean }
+  return c.json(payload, response.status as 200 | 404)
+})
+
+app.post("/api/control/stop", async (c) => {
+  const response = await getControlStub(c.env).fetch("https://control/stop", {
+    method: "POST",
+  })
+  const payload = (await response.json()) as { isRunning: boolean }
+  return c.json(payload, response.status as 200 | 404)
+})
 
 app.get(
   "/api/live",
@@ -156,4 +209,5 @@ app.get(
   }),
 )
 
+export { StartStopControlDurableObject }
 export default app

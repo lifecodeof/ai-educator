@@ -15,6 +15,34 @@
   padding: 28px;
 }
 
+.control-panel {
+  max-width: 720px;
+  margin: 0 auto;
+  height: auto;
+}
+
+.control-buttons {
+  margin-top: 16px;
+}
+
+.control-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 16px;
+  border: 2px solid var(--color-border);
+  color: var(--color-text-primary);
+  text-decoration: none;
+  text-transform: uppercase;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.control-link:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
 .panel-layout {
   display: grid;
   grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
