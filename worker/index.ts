@@ -57,7 +57,7 @@ app.post("/api/control/start", async (c) => {
     method: "POST",
   })
   const payload = (await response.json()) as { isRunning: boolean }
-  return c.json(payload, response.status as 200 | 404)
+  return c.json(payload)
 })
 
 app.post("/api/control/stop", async (c) => {
@@ -65,7 +65,7 @@ app.post("/api/control/stop", async (c) => {
     method: "POST",
   })
   const payload = (await response.json()) as { isRunning: boolean }
-  return c.json(payload, response.status as 200 | 404)
+  return c.json(payload)
 })
 
 app.get(

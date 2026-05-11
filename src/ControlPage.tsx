@@ -9,24 +9,19 @@ export default function ControlPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  const fetchStatus = useCallback(async () => {
+  const requestStatus = useCallback(async () => {
     const response = await fetch(`${apiBaseUrl}/api/control/status`)
     if (!response.ok) {
       throw new Error("Unable to load control state.")
     }
 
-    const payload = (await response.json()) as { isRunning: boolean }
-    setIsRunning(payload.isRunning)
+    return (await response.json()) as { isRunning: boolean }
   }, [apiBaseUrl])
 
   useEffect(() => {
     let isCancelled = false
-    void fetch(`${apiBaseUrl}/api/control/status`)
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error("Unable to load control state.")
-        }
-        const payload = (await response.json()) as { isRunning: boolean }
+    void requestStatus()
+      .then((payload) => {
         if (!isCancelled) {
           setIsRunning(payload.isRunning)
           setErrorMessage(null)
@@ -44,7 +39,7 @@ export default function ControlPage() {
     return () => {
       isCancelled = true
     }
-  }, [apiBaseUrl])
+  }, [requestStatus])
 
   const updateControl = useCallback(
     async (action: ControlAction) => {
@@ -118,7 +113,20 @@ export default function ControlPage() {
             type="button"
             className="btn-primary"
             disabled={isLoading}
-            onClick={() => void fetchStatus()}
+            onClick={() =>
+              void requestStatus()
+                .then((payload) => {
+                  setIsRunning(payload.isRunning)
+                  setErrorMessage(null)
+                })
+                .catch((error: unknown) => {
+                  const message =
+                    error instanceof Error
+                      ? error.message
+                      : "Unable to load control state."
+                  setErrorMessage(message)
+                })
+            }
           >
             Refresh
           </button>
