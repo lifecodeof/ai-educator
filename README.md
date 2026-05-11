@@ -37,5 +37,6 @@
 ## Durable object start/stop control
 
 - Open `/control` to view and update the live API state.
+- Default state is **running** when the durable object has no stored value yet.
 - **Start** enables `/api/live`.
 - **Stop** disables `/api/live` and returns `503` until started again.

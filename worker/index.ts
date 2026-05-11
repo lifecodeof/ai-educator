@@ -48,24 +48,48 @@ app.use("/api/live", async (c, next) => {
 })
 
 app.get("/api/control/status", async (c) => {
-  const isRunning = await getRunningState(c.env)
-  return c.json({ isRunning })
+  try {
+    const isRunning = await getRunningState(c.env)
+    return c.json({ isRunning })
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to read control status."
+    return c.json({ message }, 500)
+  }
 })
 
 app.post("/api/control/start", async (c) => {
-  const response = await getControlStub(c.env).fetch("https://control/start", {
-    method: "POST",
-  })
-  const payload = (await response.json()) as { isRunning: boolean }
-  return c.json(payload)
+  try {
+    const response = await getControlStub(c.env).fetch("https://control/start", {
+      method: "POST",
+    })
+    if (!response.ok) {
+      throw new Error("Failed to start live API.")
+    }
+    const payload = (await response.json()) as { isRunning: boolean }
+    return c.json(payload)
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to start live API."
+    return c.json({ message }, 500)
+  }
 })
 
 app.post("/api/control/stop", async (c) => {
-  const response = await getControlStub(c.env).fetch("https://control/stop", {
-    method: "POST",
-  })
-  const payload = (await response.json()) as { isRunning: boolean }
-  return c.json(payload)
+  try {
+    const response = await getControlStub(c.env).fetch("https://control/stop", {
+      method: "POST",
+    })
+    if (!response.ok) {
+      throw new Error("Failed to stop live API.")
+    }
+    const payload = (await response.json()) as { isRunning: boolean }
+    return c.json(payload)
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to stop live API."
+    return c.json({ message }, 500)
+  }
 })
 
 app.get(
