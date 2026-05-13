@@ -169,9 +169,7 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
   const wireRecognitionHandlers = useCallback(
     (recognition: SpeechRecognition, currentTriggerWord: string) => {
       recognition.onstart = () => {
-        if (listenStartedAtRef.current === 0) {
-          listenStartedAtRef.current = Date.now()
-        }
+        listenStartedAtRef.current = Date.now()
         isListeningRef.current = true
         setIsListening(true)
         setErrorMessage(null)
@@ -214,13 +212,14 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
         }
 
         if (listenStartedAtRef.current === 0) {
-          listenStartedAtRef.current = Date.now()
+          return
         }
 
         const elapsed = Date.now() - listenStartedAtRef.current
         if (elapsed < MIN_LISTEN_DURATION_MS) {
           pendingFinalTranscriptRef.current = currentTranscript
           const remainingDelay = MIN_LISTEN_DURATION_MS - elapsed
+          const scheduledListenStartedAt = listenStartedAtRef.current
 
           if (minListenTimeoutRef.current !== null) {
             window.clearTimeout(minListenTimeoutRef.current)
@@ -228,6 +227,12 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
 
           minListenTimeoutRef.current = window.setTimeout(() => {
             minListenTimeoutRef.current = null
+            if (
+              !isListeningRef.current ||
+              listenStartedAtRef.current !== scheduledListenStartedAt
+            ) {
+              return
+            }
             const pendingTranscript = pendingFinalTranscriptRef.current
 
             if (!pendingTranscript) {
