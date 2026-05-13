@@ -187,11 +187,10 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
         setDraftTranscript(currentTranscript)
 
         const hasFinalResult = changedResults.some((result) => result.isFinal)
-        if (!hasFinalResult) {
-          return
-        }
-
-        if (Date.now() - listenStartedAtRef.current < MIN_LISTEN_DURATION_MS) {
+        if (
+          !hasFinalResult ||
+          Date.now() - listenStartedAtRef.current < MIN_LISTEN_DURATION_MS
+        ) {
           return
         }
 
@@ -227,6 +226,7 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
       }
 
       recognition.onend = () => {
+        listenStartedAtRef.current = 0
         setIsListening(false)
         isListeningRef.current = false
 
@@ -288,6 +288,7 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
 
   const stopRecognition = useCallback(() => {
     keepListeningRef.current = false
+    listenStartedAtRef.current = 0
     const recognition = recognitionRef.current
     recognitionRef.current = null
 
