@@ -368,12 +368,10 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
   }, [stopRecognition])
 
   const interruptSpeech = useCallback(() => {
-    if (playbackSourcesRef.current.length > 0) {
-      playbackSourcesRef.current.forEach((source) => {
-        source.stop()
-      })
-      playbackSourcesRef.current = []
+    for (const source of playbackSourcesRef.current) {
+      source.stop()
     }
+    playbackSourcesRef.current = []
     isPlayingAudioRef.current = false
     setIsPlayingAudio(false)
     nextPlaybackStartRef.current = 0

@@ -13,7 +13,8 @@ export function MermaidChart({ chart }: MermaidChartProps) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!ref.current) return
+    const node = ref.current
+    if (!node) return
     setError(null)
 
     let cancelled = false
@@ -30,7 +31,7 @@ export function MermaidChart({ chart }: MermaidChartProps) {
 
     return () => {
       cancelled = true
-      if (ref.current) ref.current.innerHTML = ""
+      node.innerHTML = ""
     }
   }, [chart, id])
 

@@ -75,73 +75,50 @@ app.get(
       ],
     })
 
-    const cleanupMessage = events.on(
-      "audioChunk",
-      (audioChunk, mimeType, transcript) => {
-        if (!ws || ws.readyState !== WebSocket.OPEN) {
-          return
-        }
-
+    const cleanups = [
+      events.on("audioChunk", (audioChunk, mimeType, transcript) => {
+        if (ws?.readyState !== WebSocket.OPEN) return
         sendLiveResponse(ws, {
           type: "audioOutputChunk",
           audioBase64: audioChunk,
           mimeType,
           transcript,
         })
-      },
-    )
+      }),
 
-    const cleanupComplete = events.on("requestComplete", () => {
-      if (!ws || ws.readyState !== WebSocket.OPEN) {
-        return
-      }
+      events.on("requestComplete", () => {
+        if (ws?.readyState !== WebSocket.OPEN) return
+        sendLiveResponse(ws, { type: "requestComplete" })
+      }),
 
-      sendLiveResponse(ws, {
-        type: "requestComplete",
-      })
-    })
-
-    const cleanupError = events.on("error", (error) => {
-      if (ws && ws.readyState === WebSocket.OPEN) {
+      events.on("error", (error) => {
+        if (ws?.readyState !== WebSocket.OPEN) return
         const errorMessage =
           error instanceof Error ? error.message : String(error)
-        const statusCandidate = error as {
-          status?: number
-          statusCode?: number
-        }
-        const statusCode = statusCandidate.status ?? statusCandidate.statusCode
+        const statusCandidate = error as { status?: number; statusCode?: number }
         sendLiveResponse(ws, {
           type: "error",
           message: errorMessage,
-          statusCode: statusCode,
+          statusCode: statusCandidate.status ?? statusCandidate.statusCode,
         })
         ws.close(1011, "Live session error")
-      }
-    })
+      }),
+    ]
 
     let isDisposed = false
     const disposeSession = () => {
-      if (isDisposed) {
-        return
-      }
+      if (isDisposed) return
       isDisposed = true
-      cleanupMessage()
-      cleanupComplete()
-      cleanupError()
+      cleanups.forEach((cleanup) => cleanup())
       dispose()
     }
 
     return {
       onMessage(event, localWs) {
         ws = localWs
-        const request = JSON.parse(event.data as string) as LiveRequest
-
-        match(request)
-          .with({ type: "textInputChunk" }, (textRequest) => {
-            session.sendTextInput({
-              text: textRequest.text,
-              isFinished: textRequest.isFinished,
-            })
+        match(JSON.parse(event.data as string) as LiveRequest)
+          .with({ type: "textInputChunk" }, ({ text, isFinished }) => {
+            session.sendTextInput({ text, isFinished })
           })
           .exhaustive()
       },
