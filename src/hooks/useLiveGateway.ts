@@ -42,6 +42,8 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
   const isPlayingAudioRef = useRef(false)
   const isProcessingRef = useRef(false)
   const listenStartedAtRef = useRef(0)
+  const pendingFinalTranscriptRef = useRef<string | null>(null)
+  const minListenTimeoutRef = useRef<number | null>(null)
   const lastSubmittedTranscriptRef = useRef("")
   const playbackContextRef = useRef<AudioContext | null>(null)
   const nextPlaybackStartRef = useRef(0)
@@ -187,10 +189,7 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
         setDraftTranscript(currentTranscript)
 
         const hasFinalResult = changedResults.some((result) => result.isFinal)
-        if (
-          !hasFinalResult ||
-          Date.now() - listenStartedAtRef.current < MIN_LISTEN_DURATION_MS
-        ) {
+        if (!hasFinalResult) {
           return
         }
 
@@ -212,6 +211,35 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
           return
         }
 
+        const elapsed = Date.now() - listenStartedAtRef.current
+        if (elapsed < MIN_LISTEN_DURATION_MS) {
+          pendingFinalTranscriptRef.current = currentTranscript
+          const remainingDelay = MIN_LISTEN_DURATION_MS - elapsed
+
+          if (minListenTimeoutRef.current !== null) {
+            window.clearTimeout(minListenTimeoutRef.current)
+          }
+
+          minListenTimeoutRef.current = window.setTimeout(() => {
+            minListenTimeoutRef.current = null
+            const pendingTranscript = pendingFinalTranscriptRef.current
+
+            if (!pendingTranscript) {
+              return
+            }
+
+            if (pendingTranscript === lastSubmittedTranscriptRef.current) {
+              pendingFinalTranscriptRef.current = null
+              return
+            }
+
+            pendingFinalTranscriptRef.current = null
+            submitRecognizedText(pendingTranscript)
+          }, remainingDelay)
+          return
+        }
+
+        pendingFinalTranscriptRef.current = null
         submitRecognizedText(currentTranscript)
       }
 
@@ -226,7 +254,6 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
       }
 
       recognition.onend = () => {
-        listenStartedAtRef.current = 0
         setIsListening(false)
         isListeningRef.current = false
 
@@ -288,7 +315,11 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
 
   const stopRecognition = useCallback(() => {
     keepListeningRef.current = false
-    listenStartedAtRef.current = 0
+    pendingFinalTranscriptRef.current = null
+    if (minListenTimeoutRef.current !== null) {
+      window.clearTimeout(minListenTimeoutRef.current)
+      minListenTimeoutRef.current = null
+    }
     const recognition = recognitionRef.current
     recognitionRef.current = null
 
