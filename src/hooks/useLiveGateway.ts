@@ -32,6 +32,8 @@ const getSpeechRecognitionCtor = () =>
 const escapeRegExp = (value: string) =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 
+const MIN_LISTEN_DURATION_MS = 5000
+
 export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
   const wsRef = useRef<WebSocket | null>(null)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
@@ -39,6 +41,7 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
   const isListeningRef = useRef(false)
   const isPlayingAudioRef = useRef(false)
   const isProcessingRef = useRef(false)
+  const listenStartedAtRef = useRef(0)
   const lastSubmittedTranscriptRef = useRef("")
   const playbackContextRef = useRef<AudioContext | null>(null)
   const nextPlaybackStartRef = useRef(0)
@@ -164,6 +167,7 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
   const wireRecognitionHandlers = useCallback(
     (recognition: SpeechRecognition, currentTriggerWord: string) => {
       recognition.onstart = () => {
+        listenStartedAtRef.current = Date.now()
         isListeningRef.current = true
         setIsListening(true)
         setErrorMessage(null)
@@ -184,6 +188,10 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
 
         const hasFinalResult = changedResults.some((result) => result.isFinal)
         if (!hasFinalResult) {
+          return
+        }
+
+        if (Date.now() - listenStartedAtRef.current < MIN_LISTEN_DURATION_MS) {
           return
         }
 
