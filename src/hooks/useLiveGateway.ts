@@ -211,6 +211,10 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
           return
         }
 
+        if (listenStartedAtRef.current === 0) {
+          listenStartedAtRef.current = Date.now()
+        }
+
         const elapsed = Date.now() - listenStartedAtRef.current
         if (elapsed < MIN_LISTEN_DURATION_MS) {
           pendingFinalTranscriptRef.current = currentTranscript
