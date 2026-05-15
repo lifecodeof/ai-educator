@@ -1,11 +1,3 @@
-export function encodeBase64(bytes: Uint8Array): string {
-  let raw = ""
-  for (let i = 0; i < bytes.length; i += 1) {
-    raw += String.fromCharCode(bytes[i])
-  }
-  return btoa(raw)
-}
-
 export function decodeBase64(value: string): ArrayBuffer {
   const raw = atob(value)
   const buffer = new ArrayBuffer(raw.length)
