@@ -23,7 +23,6 @@ type LiveSession = {
   events: Emitter<{
     audioChunk: (chunk: string, mimeType: string, transcript?: string) => void
     error: (event: unknown) => void
-    close: (event: CloseEvent) => void
     requestComplete: () => void
   }>
   session: {
@@ -33,9 +32,9 @@ type LiveSession = {
 }
 
 const DEFAULT_RESPONSE_MIME_TYPE = "audio/pcm;rate=24000"
-
 const TEXT_MODEL = "gemini-3.1-flash-lite-preview"
 const TTS_MODEL = "gemini-2.5-flash-preview-tts"
+const VOICE_NAME = "Charon"
 
 const base64ToUint8Array = (b64: string): Uint8Array => {
   const binary =
@@ -59,7 +58,7 @@ const uint8ArrayToBase64 = (u8: Uint8Array): string => {
 
 const normalizeTtsMimeType = (mimeType?: string) => {
   const normalized = mimeType?.trim().toLowerCase()
-  if (!normalized) return "audio/pcm;rate=24000"
+  if (!normalized) return DEFAULT_RESPONSE_MIME_TYPE
   return normalized.startsWith("audio/l16")
     ? normalized.replace("audio/l16", "audio/pcm")
     : normalized
@@ -82,7 +81,7 @@ const synthesizeSpeech = async ({
   apiKey,
   cfGatewayConfig,
   text,
-  voiceName = "Charon",
+  voiceName = VOICE_NAME,
 }: {
   apiKey: string
   cfGatewayConfig?: GatewayConfig
@@ -164,7 +163,7 @@ export async function createLiveSession({
       apiKey: apiKey!,
       cfGatewayConfig,
       text,
-      voiceName: "Charon",
+      voiceName: VOICE_NAME,
     })
     events.emit(
       "audioChunk",

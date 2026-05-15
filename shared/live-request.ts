@@ -26,7 +26,12 @@ export function handleResponse(
   handler: (request: LiveRequest) => void,
 ): () => void {
   const listener = (event: MessageEvent) => {
-    handler(JSON.parse(event.data) as LiveRequest)
+    if (typeof event.data !== "string") return
+    try {
+      handler(JSON.parse(event.data) as LiveRequest)
+    } catch (error) {
+      console.error("Failed to parse live request message", error)
+    }
   }
 
   ws.addEventListener?.("message", listener)

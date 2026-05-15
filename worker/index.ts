@@ -14,6 +14,18 @@ type Bindings = {
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
+const WS_CLOSE_INTERNAL_ERROR = 1011
+const WS_ERROR_REASON = "Live session error"
+const WS_INVALID_MESSAGE_REASON = "Invalid message payload"
+
+function parseLiveRequest(data: unknown): LiveRequest | null {
+  if (typeof data !== "string") return null
+  try {
+    return JSON.parse(data) as LiveRequest
+  } catch {
+    return null
+  }
+}
 
 app.get(
   "/api/live",
@@ -101,7 +113,7 @@ app.get(
           message: errorMessage,
           statusCode: statusCandidate.status ?? statusCandidate.statusCode,
         })
-        ws.close(1011, "Live session error")
+        ws.close(WS_CLOSE_INTERNAL_ERROR, WS_ERROR_REASON)
       }),
     ]
 
@@ -116,7 +128,16 @@ app.get(
     return {
       onMessage(event, localWs) {
         ws = localWs
-        match(JSON.parse(event.data as string) as LiveRequest)
+        const request = parseLiveRequest(event.data)
+        if (!request) {
+          sendLiveResponse(localWs, {
+            type: "error",
+            message: WS_INVALID_MESSAGE_REASON,
+          })
+          localWs.close(WS_CLOSE_INTERNAL_ERROR, WS_INVALID_MESSAGE_REASON)
+          return
+        }
+        match(request)
           .with({ type: "textInputChunk" }, ({ text, isFinished }) => {
             session.sendTextInput({ text, isFinished })
           })

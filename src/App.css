@@ -69,21 +69,9 @@
   color: var(--color-secondary);
 }
 
-.status.connecting {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-}
-
-.status.connected {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-}
-
-.status.speaking {
-  border-color: var(--color-accent);
-  color: var(--color-accent);
-}
-
+.status.connecting,
+.status.connected,
+.status.speaking,
 .status.processing {
   border-color: var(--color-accent);
   color: var(--color-accent);
@@ -461,10 +449,6 @@ button:disabled {
 @media (max-width: 640px) {
   .app {
     padding: 8px;
-  }
-
-  .panel {
-    padding: 24px;
   }
 
   .controls {

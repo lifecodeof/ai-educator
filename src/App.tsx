@@ -8,6 +8,8 @@ import { useWebSocketUrl } from "./hooks/useWebSocketUrl"
 import "./App.css"
 import greetingUrl from "../greeting.mp3"
 
+const USER_INTERACTION_EVENTS = ["click", "touchstart", "keydown"] as const
+
 const markdownComponents = {
   code({
     className,
@@ -61,30 +63,28 @@ function App() {
     const audio = new Audio(greetingUrl)
     let played = false
 
+    const removePlayListeners = () => {
+      USER_INTERACTION_EVENTS.forEach((eventName) => {
+        window.removeEventListener(eventName, playOnce)
+      })
+    }
+
     const playOnce = () => {
       if (played) return
       played = true
       void audio.play().catch(() => {})
-      window.removeEventListener("click", playOnce)
-      window.removeEventListener("touchstart", playOnce)
-      window.removeEventListener("keydown", playOnce)
+      removePlayListeners()
     }
 
     // Play greeting on first user interaction (click/touch/keydown)
-    window.addEventListener("click", playOnce, { once: true })
-    window.addEventListener("touchstart", playOnce, { once: true })
-    window.addEventListener("keydown", playOnce, { once: true })
+    USER_INTERACTION_EVENTS.forEach((eventName) => {
+      window.addEventListener(eventName, playOnce, { once: true })
+    })
 
     return () => {
-      window.removeEventListener("click", playOnce)
-      window.removeEventListener("touchstart", playOnce)
-      window.removeEventListener("keydown", playOnce)
-      try {
-        audio.pause()
-        audio.src = ""
-      } catch {
-        // ignore cleanup errors
-      }
+      removePlayListeners()
+      audio.pause()
+      audio.src = ""
     }
   }, [])
   const { statusClassName, statusText } = useConnectionStatus({
