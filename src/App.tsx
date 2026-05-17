@@ -1,4 +1,4 @@
-import { memo, useEffect } from "react"
+import { useEffect, useRef } from "react"
 import type React from "react"
 import ReactMarkdown from "react-markdown"
 import { MermaidChart } from "./components/MermaidChart"
@@ -6,7 +6,8 @@ import { useConnectionStatus } from "./hooks/useConnectionStatus"
 import { useLiveGateway } from "./hooks/useLiveGateway"
 import { useWebSocketUrl } from "./hooks/useWebSocketUrl"
 import "./App.css"
-import greetingUrl from "../greeting.mp3"
+import greetingUrl from "./assets/greeting.mp3"
+import remarkGfm from "remark-gfm"
 
 const USER_INTERACTION_EVENTS = ["click", "touchstart", "keydown"] as const
 
@@ -26,17 +27,34 @@ const markdownComponents = {
   },
 }
 
-const MarkdownOutput = memo(function MarkdownOutput({
+const MarkdownOutput = function MarkdownOutput({
   markdown,
 }: {
   markdown: string
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const toScroll = scrollRef.current
+      if (!toScroll) return
+      toScroll.scrollBy({ left: 10 })
+    }, 100)
+
+    return () => clearInterval(interval)
+  }, [])
+
   return (
-    <div className="markdown-output markdown-two-page">
-      <ReactMarkdown components={markdownComponents}>{markdown}</ReactMarkdown>
+    <div ref={scrollRef} className="markdown-output markdown-two-page">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={markdownComponents}
+      >
+        {markdown}
+      </ReactMarkdown>
     </div>
   )
-})
+}
 
 function App() {
   const wsUrl = useWebSocketUrl()
@@ -203,7 +221,8 @@ function App() {
                     onClick={() => setCurrentView("transcript")}
                   >
                     Transcript{" "}
-                    {transcript && `(${transcript.split("\n\n").length} entries)`}
+                    {transcript &&
+                      `(${transcript.split("\n\n").length} entries)`}
                   </button>
                 </div>
 

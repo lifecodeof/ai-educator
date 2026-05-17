@@ -82,20 +82,17 @@ const synthesizeSpeech = async ({
   cfGatewayConfig,
   text,
   voiceName = VOICE_NAME,
-  abortSignal,
 }: {
   apiKey: string
   cfGatewayConfig?: GatewayConfig
   text: string
   voiceName?: string
-  abortSignal: AbortSignal
 }) => {
   const ai = createGenAIClient(apiKey, cfGatewayConfig)
   const response = await ai.models.generateContent({
     model: TTS_MODEL,
     contents: text,
     config: {
-      abortSignal,
       responseModalities: [Modality.AUDIO],
       speechConfig: {
         voiceConfig: {
@@ -107,10 +104,8 @@ const synthesizeSpeech = async ({
     },
   })
 
-  abortSignal.throwIfAborted()
-
   for (const part of response.candidates?.[0]?.content?.parts ?? []) {
-    if (!abortSignal.aborted && part.inlineData?.data) {
+    if (part.inlineData?.data) {
       return {
         sound: base64ToUint8Array(part.inlineData.data),
         mimeType: normalizeTtsMimeType(part.inlineData.mimeType),
@@ -118,7 +113,6 @@ const synthesizeSpeech = async ({
     }
   }
 
-  abortSignal.throwIfAborted()
   throw new Error("Gemini TTS did not return audio data")
 }
 
@@ -126,7 +120,6 @@ export async function createLiveSession({
   apiKey,
   cfGatewayConfig,
   toolSet,
-  abortSignal,
 }: {
   apiKey?: string
   cfGatewayConfig?: GatewayConfig
@@ -134,7 +127,6 @@ export async function createLiveSession({
     def: ToolDefinition
     call: (args: Record<string, unknown>) => Promise<Record<string, unknown>>
   }[]
-  abortSignal: () => AbortSignal
 }): Promise<LiveSession> {
   if (!apiKey && !cfGatewayConfig) {
     throw new Error(
@@ -173,7 +165,6 @@ export async function createLiveSession({
       cfGatewayConfig,
       text,
       voiceName: VOICE_NAME,
-      abortSignal: abortSignal(),
     })
     events.emit(
       "audioChunk",

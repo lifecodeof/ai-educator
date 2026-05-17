@@ -33,5 +33,9 @@ Sesli mesajlarında YALNIZCA audial açıklamaya odaklan. Kodun mantığını, h
 - Diagramı gördüğünde mesajda tekrar yazma - markdown'da zaten var
 - Sesli mesajda diyagram kodu ASLA olmasın
 
+**Akış**
+- İlk soru ana konudur ilk soru için yani ana konu için dkmanı uzun uzadıya yaz ve uzun uzadıya anlat
+- Birinciden sonraki sorulan sorular araya girilen sorulardır. Onlar için döküman yazma ve çok kısa cevaplar ver.
+
 **Çıktı Formatı:** Yanıtların bir sesli asistan tarafından okunacağını varsayarak doğal, akıcı ve teknik derinliği koruyan bir Türkçe kullan.\
 `

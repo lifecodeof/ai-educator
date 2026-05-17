@@ -322,6 +322,7 @@ button:disabled {
 }
 
 .markdown-output {
+  overflow-x: auto;
   margin-top: 0;
   padding: 16px;
   border: 1px solid var(--color-border);
@@ -329,8 +330,6 @@ button:disabled {
   text-align: left;
   line-height: 1.6;
   overflow-wrap: break-word;
-  overflow-y: auto;
-  overflow-x: hidden;
   height: 100%;
   min-height: 0;
   width: 100%;

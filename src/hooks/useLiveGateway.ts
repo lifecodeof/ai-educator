@@ -5,6 +5,9 @@ import { handleResponse as handleLiveResponse } from "../../shared/live-response
 import { decodeBase64 } from "../audio/base64"
 import { getAudioContextCtor } from "../audio/audio-context"
 import { PLAYBACK_SAMPLE_RATE } from "../audio/constants"
+import listeningUrl from "../assets/listening.mp3"
+import thinkingUrl from "../assets/thinking.mp3"
+import continueUrl from "../assets/continue.mp3"
 
 const getSpeechRecognitionCtor = () =>
   window.SpeechRecognition ?? window.webkitSpeechRecognition
@@ -12,7 +15,7 @@ const getSpeechRecognitionCtor = () =>
 const escapeRegExp = (value: string) =>
   value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 
-const MIN_LISTEN_DURATION_MS = 5000
+const MIN_LISTEN_DURATION_MS = 5_000
 
 export function useLiveGateway(wsUrl: string) {
   const wsRef = useRef<WebSocket | null>(null)
@@ -23,6 +26,7 @@ export function useLiveGateway(wsUrl: string) {
   const isPlaybackPausedRef = useRef(false)
   const isProcessingRef = useRef(false)
   const listenStartedAtRef = useRef(0)
+  const triggerSeenAtRef = useRef(0)
   const pendingFinalTranscriptRef = useRef<string | null>(null)
   const minListenTimeoutRef = useRef<number | null>(null)
   const lastSubmittedTranscriptRef = useRef("")
@@ -104,6 +108,10 @@ export function useLiveGateway(wsUrl: string) {
       await playbackContextRef.current.close()
     }
 
+    await new Promise((r) => setTimeout(r, 1_000))
+    new Audio(continueUrl).play().catch(console.error)
+    await new Promise((r) => setTimeout(r, 5_000))
+
     playbackContextRef.current = prevResponse.context
     playbackSourcesRef.current = prevResponse.sources
     nextPlaybackStartRef.current = 0
@@ -177,6 +185,7 @@ export function useLiveGateway(wsUrl: string) {
 
   const submitRecognizedText = useCallback(
     (text: string) => {
+      triggerSeenAtRef.current = 0
       const normalizedText = text.trim()
       const ws = wsRef.current
 
@@ -195,7 +204,7 @@ export function useLiveGateway(wsUrl: string) {
       appendTranscriptEntry(`You: ${normalizedText}`)
       setDraftTranscript("")
 
-      storeIntervention()
+      new Audio(thinkingUrl).play().catch(console.error)
       sendLiveRequest(ws, {
         type: "textInputChunk",
         text: normalizedText,
@@ -204,6 +213,13 @@ export function useLiveGateway(wsUrl: string) {
     },
     [appendTranscriptEntry, interruptSpeech],
   )
+
+  const onTriggerWordSeen = useCallback(() => {
+    // stop talking
+    storeIntervention()
+    // play predefined sound
+    new Audio(listeningUrl).play().catch(console.error)
+  }, [])
 
   const wireRecognitionHandlers = useCallback(
     (recognition: SpeechRecognition, currentTriggerWord: string) => {
@@ -224,6 +240,7 @@ export function useLiveGateway(wsUrl: string) {
           .join(" ")
           .replace(/\s+/g, " ")
           .trim()
+          .replace("seni dinliyorum", "")
 
         setDraftTranscript(currentTranscript)
 
@@ -237,10 +254,15 @@ export function useLiveGateway(wsUrl: string) {
           `\\b${escapeRegExp(normalizedTrigger)}\\b`,
           "i",
         )
-        if (normalizedTrigger) {
-          if (!triggerPattern.test(currentTranscript)) {
-            return
+        if (triggerSeenAtRef.current === 0) {
+          if (normalizedTrigger) {
+            if (!triggerPattern.test(currentTranscript)) {
+              return
+            }
           }
+
+          triggerSeenAtRef.current = Date.now()
+          onTriggerWordSeen()
         }
 
         if (
@@ -250,15 +272,10 @@ export function useLiveGateway(wsUrl: string) {
           return
         }
 
-        if (listenStartedAtRef.current === 0) {
-          return
-        }
-
-        const elapsed = Date.now() - listenStartedAtRef.current
+        const elapsed = Date.now() - triggerSeenAtRef.current
         if (elapsed < MIN_LISTEN_DURATION_MS) {
           pendingFinalTranscriptRef.current = currentTranscript
           const remainingDelay = MIN_LISTEN_DURATION_MS - elapsed
-          const scheduledListenStartedAt = listenStartedAtRef.current
 
           if (minListenTimeoutRef.current !== null) {
             window.clearTimeout(minListenTimeoutRef.current)
@@ -266,10 +283,7 @@ export function useLiveGateway(wsUrl: string) {
 
           minListenTimeoutRef.current = window.setTimeout(() => {
             minListenTimeoutRef.current = null
-            if (
-              !isListeningRef.current ||
-              listenStartedAtRef.current !== scheduledListenStartedAt
-            ) {
+            if (!isListeningRef.current) {
               return
             }
             const pendingTranscript = pendingFinalTranscriptRef.current
