@@ -6,28 +6,6 @@ import { decodeBase64 } from "../audio/base64"
 import { getAudioContextCtor } from "../audio/audio-context"
 import { PLAYBACK_SAMPLE_RATE } from "../audio/constants"
 
-interface UseLiveGatewayResult {
-  isConnecting: boolean
-  isConnected: boolean
-  isListening: boolean
-  isPlayingAudio: boolean
-  isPlaybackPaused: boolean
-  isProcessing: boolean
-  draftTranscript: string
-  triggerWord: string
-  setTriggerWord: (word: string) => void
-  errorMessage: string | null
-  transcript: string
-  document: string
-  currentView: "transcript" | "document"
-  setCurrentView: (view: "transcript" | "document") => void
-  connect: () => Promise<void>
-  disconnect: () => void
-  interruptSpeech: () => void
-  togglePlaybackPause: () => Promise<void>
-  cancelProcessing: () => void
-}
-
 const getSpeechRecognitionCtor = () =>
   window.SpeechRecognition ?? window.webkitSpeechRecognition
 
@@ -36,7 +14,7 @@ const escapeRegExp = (value: string) =>
 
 const MIN_LISTEN_DURATION_MS = 5000
 
-export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
+export function useLiveGateway(wsUrl: string) {
   const wsRef = useRef<WebSocket | null>(null)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
   const keepListeningRef = useRef(false)
@@ -49,6 +27,9 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
   const minListenTimeoutRef = useRef<number | null>(null)
   const lastSubmittedTranscriptRef = useRef("")
   const playbackContextRef = useRef<AudioContext | null>(null)
+  const responseStackRef = useRef<
+    Array<{ context: AudioContext; sources: AudioBufferSourceNode[] }>
+  >([])
   const nextPlaybackStartRef = useRef(0)
   const playbackSourcesRef = useRef<AudioBufferSourceNode[]>([])
 
@@ -97,6 +78,39 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
     setTranscript((prev) => (prev ? `${prev}\n\n${entry}` : entry))
   }, [])
 
+  const storeIntervention = useCallback(async () => {
+    if (!playbackContextRef.current) return
+    await playbackContextRef.current.suspend()
+    responseStackRef.current.push({
+      context: playbackContextRef.current,
+      sources: playbackSourcesRef.current,
+    })
+    const AudioContextCtor = getAudioContextCtor()
+    playbackContextRef.current = new AudioContextCtor({
+      sampleRate: PLAYBACK_SAMPLE_RATE,
+    })
+    playbackSourcesRef.current = []
+    nextPlaybackStartRef.current = 0
+  }, [])
+
+  const popIntervention = useCallback(async () => {
+    const prevResponse = responseStackRef.current.pop()
+    if (!prevResponse) return
+
+    for (const source of playbackSourcesRef.current) {
+      source.stop()
+    }
+    if (playbackContextRef.current) {
+      await playbackContextRef.current.close()
+    }
+
+    playbackContextRef.current = prevResponse.context
+    playbackSourcesRef.current = prevResponse.sources
+    nextPlaybackStartRef.current = 0
+
+    await playbackContextRef.current.resume()
+  }, [])
+
   const playAudio = useCallback(
     async (arrayBuffer: ArrayBuffer) => {
       const playbackContext = ensurePlaybackContext()
@@ -133,6 +147,7 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
       playbackSourcesRef.current.push(source)
 
       source.addEventListener("ended", () => {
+        popIntervention()
         playbackSourcesRef.current = playbackSourcesRef.current.filter(
           (candidate) => candidate !== source,
         )
@@ -180,7 +195,7 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
       appendTranscriptEntry(`You: ${normalizedText}`)
       setDraftTranscript("")
 
-      interruptSpeech()
+      storeIntervention()
       sendLiveRequest(ws, {
         type: "textInputChunk",
         text: normalizedText,
@@ -218,11 +233,11 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
         }
 
         const normalizedTrigger = currentTriggerWord.trim().toLowerCase()
+        const triggerPattern = new RegExp(
+          `\\b${escapeRegExp(normalizedTrigger)}\\b`,
+          "i",
+        )
         if (normalizedTrigger) {
-          const triggerPattern = new RegExp(
-            `\\b${escapeRegExp(normalizedTrigger)}\\b`,
-            "i",
-          )
           if (!triggerPattern.test(currentTranscript)) {
             return
           }
@@ -269,7 +284,9 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
             }
 
             pendingFinalTranscriptRef.current = null
-            submitRecognizedText(pendingTranscript)
+            const pendingTranscriptWithoutTriggerWord =
+              pendingTranscript.replace(triggerPattern, "")
+            submitRecognizedText(pendingTranscriptWithoutTriggerWord)
           }, remainingDelay)
           return
         }
@@ -502,6 +519,10 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
   useEffect(() => {
     return () => {
       disconnect()
+      for (const { context } of responseStackRef.current) {
+        void context.close()
+      }
+      responseStackRef.current = []
       if (playbackContextRef.current) {
         void playbackContextRef.current.close()
         playbackContextRef.current = null
@@ -534,5 +555,7 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
     interruptSpeech,
     togglePlaybackPause,
     cancelProcessing,
+    storeIntervention,
+    popIntervention,
   }
 }
