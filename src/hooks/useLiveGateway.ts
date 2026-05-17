@@ -44,7 +44,7 @@ export function useLiveGateway(wsUrl: string) {
   const [isPlaybackPaused, setIsPlaybackPaused] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [draftTranscript, setDraftTranscript] = useState("")
-  const [triggerWord, setTriggerWord] = useState("soru")
+  const [triggerWord, setTriggerWord] = useState("")
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [transcript, setTranscript] = useState<string>("")
   const [document, setDocument] = useState<string>("")
@@ -98,6 +98,7 @@ export function useLiveGateway(wsUrl: string) {
   }, [])
 
   const popIntervention = useCallback(async () => {
+    if (responseStackRef.current.length <= 1) return
     const prevResponse = responseStackRef.current.pop()
     if (!prevResponse) return
 
@@ -168,7 +169,7 @@ export function useLiveGateway(wsUrl: string) {
       source.start(nextPlaybackStartRef.current)
       nextPlaybackStartRef.current += audioBuffer.duration
     },
-    [ensurePlaybackContext],
+    [ensurePlaybackContext, popIntervention],
   )
 
   const interruptSpeech = useCallback(() => {
@@ -185,6 +186,7 @@ export function useLiveGateway(wsUrl: string) {
 
   const submitRecognizedText = useCallback(
     (text: string) => {
+      if (triggerWord === "") setTriggerWord("soru")
       triggerSeenAtRef.current = 0
       const normalizedText = text.trim()
       const ws = wsRef.current
@@ -211,7 +213,7 @@ export function useLiveGateway(wsUrl: string) {
         isFinished: true,
       })
     },
-    [appendTranscriptEntry, interruptSpeech],
+    [appendTranscriptEntry, triggerWord],
   )
 
   const onTriggerWordSeen = useCallback(() => {
@@ -219,7 +221,7 @@ export function useLiveGateway(wsUrl: string) {
     storeIntervention()
     // play predefined sound
     new Audio(listeningUrl).play().catch(console.error)
-  }, [])
+  }, [storeIntervention])
 
   const wireRecognitionHandlers = useCallback(
     (recognition: SpeechRecognition, currentTriggerWord: string) => {
@@ -344,7 +346,7 @@ export function useLiveGateway(wsUrl: string) {
         }
       }
     },
-    [submitRecognizedText],
+    [submitRecognizedText, onTriggerWordSeen],
   )
 
   useEffect(() => {

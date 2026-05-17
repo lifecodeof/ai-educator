@@ -9,7 +9,12 @@ import "./App.css"
 import greetingUrl from "./assets/greeting.mp3"
 import remarkGfm from "remark-gfm"
 
-const USER_INTERACTION_EVENTS = ["click", "touchstart", "keydown"] as const
+const USER_INTERACTION_EVENTS = [
+  "load",
+  "click",
+  "touchstart",
+  "keydown",
+] as const
 
 const markdownComponents = {
   code({
@@ -94,6 +99,9 @@ function App() {
       played = true
       void audio.play().catch(() => {})
       removePlayListeners()
+      setTimeout(() => {
+        connect()
+      }, 13_000)
     }
 
     // Play greeting on first user interaction (click/touch/keydown)
