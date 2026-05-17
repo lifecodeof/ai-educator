@@ -11,6 +11,7 @@ interface UseLiveGatewayResult {
   isConnected: boolean
   isListening: boolean
   isPlayingAudio: boolean
+  isPlaybackPaused: boolean
   isProcessing: boolean
   draftTranscript: string
   triggerWord: string
@@ -23,6 +24,7 @@ interface UseLiveGatewayResult {
   connect: () => Promise<void>
   disconnect: () => void
   interruptSpeech: () => void
+  togglePlaybackPause: () => Promise<void>
   cancelProcessing: () => void
 }
 
@@ -40,6 +42,7 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
   const keepListeningRef = useRef(false)
   const isListeningRef = useRef(false)
   const isPlayingAudioRef = useRef(false)
+  const isPlaybackPausedRef = useRef(false)
   const isProcessingRef = useRef(false)
   const listenStartedAtRef = useRef(0)
   const pendingFinalTranscriptRef = useRef<string | null>(null)
@@ -53,6 +56,7 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
   const [isConnected, setIsConnected] = useState(false)
   const [isListening, setIsListening] = useState(false)
   const [isPlayingAudio, setIsPlayingAudio] = useState(false)
+  const [isPlaybackPaused, setIsPlaybackPaused] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [draftTranscript, setDraftTranscript] = useState("")
   const [triggerWord, setTriggerWord] = useState("soru")
@@ -70,6 +74,10 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
   useEffect(() => {
     isPlayingAudioRef.current = isPlayingAudio
   }, [isPlayingAudio])
+
+  useEffect(() => {
+    isPlaybackPausedRef.current = isPlaybackPaused
+  }, [isPlaybackPaused])
 
   useEffect(() => {
     isProcessingRef.current = isProcessing
@@ -92,7 +100,10 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
   const playAudio = useCallback(
     async (arrayBuffer: ArrayBuffer) => {
       const playbackContext = ensurePlaybackContext()
-      if (playbackContext.state === "suspended") {
+      if (
+        playbackContext.state === "suspended" &&
+        !isPlaybackPausedRef.current
+      ) {
         await playbackContext.resume()
       }
 
@@ -137,6 +148,18 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
     [ensurePlaybackContext],
   )
 
+  const interruptSpeech = useCallback(() => {
+    for (const source of playbackSourcesRef.current) {
+      source.stop()
+    }
+    playbackSourcesRef.current = []
+    isPlayingAudioRef.current = false
+    setIsPlayingAudio(false)
+    isPlaybackPausedRef.current = false
+    setIsPlaybackPaused(false)
+    nextPlaybackStartRef.current = 0
+  }, [])
+
   const submitRecognizedText = useCallback(
     (text: string) => {
       const normalizedText = text.trim()
@@ -157,13 +180,14 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
       appendTranscriptEntry(`You: ${normalizedText}`)
       setDraftTranscript("")
 
+      interruptSpeech()
       sendLiveRequest(ws, {
         type: "textInputChunk",
         text: normalizedText,
         isFinished: true,
       })
     },
-    [appendTranscriptEntry],
+    [appendTranscriptEntry, interruptSpeech],
   )
 
   const wireRecognitionHandlers = useCallback(
@@ -367,15 +391,23 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
     stopRecognition()
   }, [stopRecognition])
 
-  const interruptSpeech = useCallback(() => {
-    for (const source of playbackSourcesRef.current) {
-      source.stop()
+  const togglePlaybackPause = useCallback(async () => {
+    if (!isPlayingAudioRef.current) {
+      return
     }
-    playbackSourcesRef.current = []
-    isPlayingAudioRef.current = false
-    setIsPlayingAudio(false)
-    nextPlaybackStartRef.current = 0
-  }, [])
+
+    const playbackContext = ensurePlaybackContext()
+    if (isPlaybackPausedRef.current) {
+      await playbackContext.resume()
+      isPlaybackPausedRef.current = false
+      setIsPlaybackPaused(false)
+      return
+    }
+
+    await playbackContext.suspend()
+    isPlaybackPausedRef.current = true
+    setIsPlaybackPaused(true)
+  }, [ensurePlaybackContext])
 
   const disconnect = useCallback(() => {
     keepListeningRef.current = false
@@ -487,6 +519,7 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
     isConnected,
     isListening,
     isPlayingAudio,
+    isPlaybackPaused,
     isProcessing,
     draftTranscript,
     triggerWord,
@@ -499,6 +532,7 @@ export function useLiveGateway(wsUrl: string): UseLiveGatewayResult {
     connect,
     disconnect,
     interruptSpeech,
+    togglePlaybackPause,
     cancelProcessing,
   }
 }

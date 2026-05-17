@@ -82,17 +82,20 @@ const synthesizeSpeech = async ({
   cfGatewayConfig,
   text,
   voiceName = VOICE_NAME,
+  abortSignal,
 }: {
   apiKey: string
   cfGatewayConfig?: GatewayConfig
   text: string
   voiceName?: string
+  abortSignal: AbortSignal
 }) => {
   const ai = createGenAIClient(apiKey, cfGatewayConfig)
   const response = await ai.models.generateContent({
     model: TTS_MODEL,
     contents: text,
     config: {
+      abortSignal,
       responseModalities: [Modality.AUDIO],
       speechConfig: {
         voiceConfig: {
@@ -104,8 +107,10 @@ const synthesizeSpeech = async ({
     },
   })
 
+  abortSignal.throwIfAborted()
+
   for (const part of response.candidates?.[0]?.content?.parts ?? []) {
-    if (part.inlineData?.data) {
+    if (!abortSignal.aborted && part.inlineData?.data) {
       return {
         sound: base64ToUint8Array(part.inlineData.data),
         mimeType: normalizeTtsMimeType(part.inlineData.mimeType),
@@ -113,6 +118,7 @@ const synthesizeSpeech = async ({
     }
   }
 
+  abortSignal.throwIfAborted()
   throw new Error("Gemini TTS did not return audio data")
 }
 
@@ -120,6 +126,7 @@ export async function createLiveSession({
   apiKey,
   cfGatewayConfig,
   toolSet,
+  abortSignal,
 }: {
   apiKey?: string
   cfGatewayConfig?: GatewayConfig
@@ -127,6 +134,7 @@ export async function createLiveSession({
     def: ToolDefinition
     call: (args: Record<string, unknown>) => Promise<Record<string, unknown>>
   }[]
+  abortSignal: () => AbortSignal
 }): Promise<LiveSession> {
   if (!apiKey && !cfGatewayConfig) {
     throw new Error(
@@ -136,11 +144,12 @@ export async function createLiveSession({
 
   const ai = createGenAIClient(apiKey!, cfGatewayConfig)
   const events: LiveSession["events"] = createNanoEvents()
-  const toolDeclarations = toolSet.map((t) => ({ functionDeclarations: [t.def] }))
+  const toolDeclarations = toolSet.map((t) => ({
+    functionDeclarations: [t.def],
+  }))
 
   const bufferedTextChunks: string[] = []
   let isDisposed = false
-  let processQueue: Promise<void> = Promise.resolve()
   const conversationHistory: Content[] = []
 
   const executeToolCalls = async (functionCalls: FunctionCall[]) => {
@@ -164,6 +173,7 @@ export async function createLiveSession({
       cfGatewayConfig,
       text,
       voiceName: VOICE_NAME,
+      abortSignal: abortSignal(),
     })
     events.emit(
       "audioChunk",
@@ -201,13 +211,12 @@ export async function createLiveSession({
     })
 
     try {
-      const generateConfig = {
+      const replyResponse = await ai.models.generateContent({
         model: TEXT_MODEL,
         contents: conversationHistory,
         config: { tools: toolDeclarations, systemInstruction },
-      }
+      })
 
-      const replyResponse = await ai.models.generateContent(generateConfig)
       const res = replyResponse.candidates?.[0]?.content
       if (!res) {
         events.emit("requestComplete")
@@ -217,7 +226,8 @@ export async function createLiveSession({
       conversationHistory.push(res)
 
       const functionCalls: FunctionCall[] =
-        res.parts?.flatMap((p) => (p.functionCall ? [p.functionCall] : [])) ?? []
+        res.parts?.flatMap((p) => (p.functionCall ? [p.functionCall] : [])) ??
+        []
 
       let responseContent: Content | undefined = res
       let responseText = replyResponse.text?.trim() ?? ""
@@ -229,7 +239,11 @@ export async function createLiveSession({
             parts: functionResponses.map((fr) => ({ functionResponse: fr })),
           })
 
-          const finalResponse = await ai.models.generateContent(generateConfig)
+          const finalResponse = await ai.models.generateContent({
+            model: TEXT_MODEL,
+            contents: conversationHistory,
+            config: { tools: toolDeclarations, systemInstruction },
+          })
           const finalContent = finalResponse.candidates?.[0]?.content
           if (finalContent) conversationHistory.push(finalContent)
 
@@ -247,15 +261,19 @@ export async function createLiveSession({
     }
   }
 
-  const session = {
-    sendTextInput: ({ text, isFinished }: { text: string; isFinished: boolean }) => {
+  const session: LiveSession["session"] = {
+    sendTextInput: ({
+      text,
+      isFinished,
+    }: {
+      text: string
+      isFinished: boolean
+    }) => {
       if (!text) return
       bufferedTextChunks.push(text)
 
       if (isFinished) {
-        processQueue = processQueue
-          .then(processBufferedText)
-          .catch((error) => events.emit("error", error))
+        processBufferedText()
       }
     },
   }

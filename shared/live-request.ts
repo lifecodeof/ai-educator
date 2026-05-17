@@ -1,9 +1,8 @@
-export type LiveRequest =
-  | {
-      type: "textInputChunk"
-      text: string
-      isFinished: boolean
-    }
+export type LiveRequest = {
+  type: "textInputChunk"
+  text: string
+  isFinished: boolean
+}
 
 export type Websocket = {
   send(data: string): void

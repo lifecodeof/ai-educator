@@ -45,6 +45,7 @@ function App() {
     isConnected,
     isListening,
     isPlayingAudio,
+    isPlaybackPaused,
     isProcessing,
     draftTranscript,
     triggerWord,
@@ -57,6 +58,7 @@ function App() {
     connect,
     disconnect,
     interruptSpeech,
+    togglePlaybackPause,
     cancelProcessing,
   } = useLiveGateway(wsUrl)
   useEffect(() => {
@@ -154,6 +156,15 @@ function App() {
               >
                 Disconnect
               </button>
+              {isPlayingAudio && (
+                <button
+                  type="button"
+                  className={isPlaybackPaused ? "btn-primary" : "btn-danger"}
+                  onClick={() => void togglePlaybackPause()}
+                >
+                  {isPlaybackPaused ? "Play" : "Pause"}
+                </button>
+              )}
               {isPlayingAudio && (
                 <button
                   type="button"

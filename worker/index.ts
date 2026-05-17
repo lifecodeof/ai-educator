@@ -31,6 +31,7 @@ app.get(
   "/api/live",
   upgradeWebSocket(async (c) => {
     let ws: WSContext<WebSocket> | undefined
+    let abortController = new AbortController()
 
     // Determine API configuration - prefer Cloudflare Gateway if available
     const apiKey = c.env.GEMINI_API_KEY
@@ -54,6 +55,7 @@ app.get(
       session,
       [Symbol.dispose]: dispose,
     } = await createLiveSession({
+      abortSignal: () => abortController.signal,
       apiKey: apiKey || undefined,
       cfGatewayConfig: cfGatewayConfig || undefined,
       toolSet: [
@@ -101,13 +103,17 @@ app.get(
       events.on("requestComplete", () => {
         if (ws?.readyState !== WebSocket.OPEN) return
         sendLiveResponse(ws, { type: "requestComplete" })
+        abortController = new AbortController()
       }),
 
       events.on("error", (error) => {
         if (ws?.readyState !== WebSocket.OPEN) return
         const errorMessage =
           error instanceof Error ? error.message : String(error)
-        const statusCandidate = error as { status?: number; statusCode?: number }
+        const statusCandidate = error as {
+          status?: number
+          statusCode?: number
+        }
         sendLiveResponse(ws, {
           type: "error",
           message: errorMessage,
@@ -139,6 +145,8 @@ app.get(
         }
         match(request)
           .with({ type: "textInputChunk" }, ({ text, isFinished }) => {
+            abortController.abort()
+            abortController = new AbortController()
             session.sendTextInput({ text, isFinished })
           })
           .exhaustive()
