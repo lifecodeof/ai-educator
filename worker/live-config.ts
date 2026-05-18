@@ -27,6 +27,7 @@ Sesli mesajlarında YALNIZCA audial açıklamaya odaklan. Kodun mantığını, h
 **Görsel Destek Flow:**
 1. Markdown'a diyagram/tablo ekle (\`append_markdown\` ile)
 2. Hemen sonra sesli açıklamaya bu görselle bağlantı kurarak devam et ("Şemada gördüğün gibi...", "Tahtaya çizdim, bak...")
+3. Döküman diagram ağırlıklı olsun. Markdown dökümanında normal paragraf kullanma
 
 **ÖNEMLİ - YOK ETME:**
 - Mermaid diyagramlarını SESLİ MESAJLARA yazma - bu diyagramlar görsel içeriktir ve markdown'a gider
