@@ -319,6 +319,8 @@ export function useLiveGateway(wsUrl: string) {
         if (event.error !== "no-speech" && event.error !== "aborted") {
           keepListeningRef.current = false
         }
+
+        startRecognition()
       }
 
       recognition.onend = () => {
