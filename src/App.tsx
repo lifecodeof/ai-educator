@@ -43,7 +43,7 @@ const MarkdownOutput = function MarkdownOutput({
     const interval = setInterval(() => {
       const toScroll = scrollRef.current
       if (!toScroll) return
-      toScroll.scrollBy({ left: 10 })
+      toScroll.scrollBy({ left: 1 })
     }, 100)
 
     return () => clearInterval(interval)
